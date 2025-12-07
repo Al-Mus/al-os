@@ -1,15 +1,111 @@
+Отлично, добавим важную инфу про **только BIOS, без UEFI**. Это ценная деталь, пусть будет чётко выделена в обоих языках 👍
+
+Вот обновлённая версия (можешь копировать полностью):
+
+---
+
 # AL-OS
 
-(Русская часть)
+![OS Dev](https://img.shields.io/badge/OS-Development-blue)
+![Language C](https://img.shields.io/badge/Language-C-green)
+![Bootloader GRUB](https://img.shields.io/badge/Bootloader-GRUB-orange)
+![Status Experimental](https://img.shields.io/badge/Status-Experimental-yellow)
 
-Привет! Это моя первая система которую я постепенно создаю, вы можете предложить что добавить или сообщить о проблеме. Это очень поможет
-Так же проэкт считается open source, так что можете качать исходный код и творить! Или делать форки
-Система пока что только на английском языке, в будущем может добавлю и русские символы. Так же разработчик (ну я тоесть) знаю как и Русский, так и Английский. Родным языром считается Русский. Мне 15 лет (скоро 16), надеюсь вам понравится творчерство и вы будете предлагать что добавить. 
-   С уважением от Al-Mus
+---
 
-(English part)
+## 🇷🇺 О проекте
 
-Hi! This is my first system that I'm gradually creating. Feel free to suggest additions or report problems. It would be very helpful. 
-The project is also open source, so you can download the source code and create! Or fork it. 
-The system is currently only in English, but I might add Russian characters in the future. The developer (well, me, that is) speaks both Russian and English. Russian is considered my native language. I'm 15 years old (soon to be 16), and I hope you enjoy my creativity and suggest additions. 
-   Sincerely, Al-Mus
+**AL-OS** - экспериментальная операционная система на языке **C** с загрузчиком **GRUB**.
+Проект создаётся “ради прикола” и интереса к системному программированию.
+
+Работает на обычных компьютерах **в BIOS-режиме**.
+**UEFI пока не поддерживается.**
+
+Система находится в активной разработке, обновления выходят постепенно.
+
+---
+
+## Возможности
+
+* собственное ядро
+* GRUB загрузка
+* базовый вывод
+* ISO-образ в Releases
+
+---
+
+## Поддерживаемые режимы загрузки
+
+* BIOS - ✔ поддерживается
+* UEFI - ✘ пока нет
+
+---
+
+## Releases
+
+Актуальный ISO можно скачать здесь:
+➡ **Releases**
+
+---
+
+## Запуск
+
+Инструкция по запуску появится позже.
+На данный момент можно использовать:
+
+* QEMU
+* VirtualBox
+* реальный ПК (BIOS mode)
+
+---
+
+## Участие
+
+Форк, предложения, Pull Requests — приветствуются.
+Если есть идеи — создавайте Issue.
+
+---
+
+# 🇺🇸 English
+
+## About
+
+**AL-OS** is an experimental operating system written in **C** and booted using **GRUB**.
+This project is mostly for fun and for exploring how low-level system components actually work.
+
+Runs on real hardware in **BIOS mode**.
+**UEFI is not supported yet.**
+
+---
+
+## Features
+
+* Custom kernel
+* GRUB bootloader
+* Basic text output
+* Bootable ISO (see Releases)
+
+---
+
+## Boot support
+
+* BIOS — supported
+* UEFI — not yet
+
+---
+
+## Status
+
+Active development. New features are added occasionally.
+
+---
+
+## Contribute
+
+Forks, ideas and pull requests are welcome.
+
+---
+
+## Author
+
+Created by **Al-Mus**
