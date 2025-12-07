@@ -38,7 +38,7 @@
 ## Releases
 
 Актуальный ISO можно скачать здесь:
-➡ [![Releases](https://img.shields.io/github/v/release/Al-Mus/al-os?label=Download%20ISO&color=blue)](https://github.com/Al-Mus/al-os/releases)
+➡ [![Releases](https://img.shields.io/github/v/release/Al-Mus/al-os?label=Releases&color=blue)](https://github.com/Al-Mus/al-os/releases)
 
 ---
 
