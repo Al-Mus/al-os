@@ -47,7 +47,7 @@
 
 https://al-mus.github.io/al-os
 
-[![Website](https://img.shields.io/?label=Website\&color=green)](https://al-mus.github.io/al-os)
+[![Website](https://img.shields.io/badge/%F0%9F%8C%90_Website-AL--OS-green?style=flat&logo=github)](https://al-mus.github.io/al-os)
 
 ---
 
