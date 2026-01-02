@@ -27,7 +27,7 @@ $(TARGET): $(OBJS)
 iso: $(TARGET)
 	mkdir -p iso/boot/grub
 	cp $(TARGET) iso/boot/kernel.elf
-	printf "set timeout=1\nset default=0\nmenuentry \"Test Al System\" {\n    multiboot /boot/kernel.elf\n    boot\n}\n" > iso/boot/grub/grub.cfg
+	printf "set timeout=1\nset default=0\nmenuentry \"Boot Al-OS\" {\n    multiboot /boot/kernel.elf\n    boot\n}\n" > iso/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) iso
 
 clean:

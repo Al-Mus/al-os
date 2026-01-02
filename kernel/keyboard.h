@@ -12,7 +12,6 @@ void keyboard_read_line(char* buffer, int max_len);
 int keyboard_sigint_check(void);
 void keyboard_poll(void);
 
-// Command history API
 void keyboard_history_add(const char* cmd);
 const char* keyboard_history_prev(void);
 const char* keyboard_history_next(void);

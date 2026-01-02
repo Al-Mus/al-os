@@ -9,18 +9,15 @@
 
 static char history[HISTORY_SIZE][HISTORY_ENTRY_LEN];
 static int history_count = 0;
-static int history_nav = 0; // index in [0..history_count], history_count means "current empty line"
-
+static int history_nav = 0;
 void keyboard_history_add(const char* cmd) {
     if (!cmd || cmd[0] == '\0') return;
-    // avoid duplicate of last
     if (history_count > 0 && strcmp(history[(history_count-1) % HISTORY_SIZE], cmd) == 0) return;
     if (history_count < HISTORY_SIZE) {
         strncpy(history[history_count], cmd, HISTORY_ENTRY_LEN-1);
         history[history_count][HISTORY_ENTRY_LEN-1] = '\0';
         history_count++;
     } else {
-        // shift left
         for (int i = 0; i < HISTORY_SIZE-1; i++) strcpy(history[i], history[i+1]);
         strncpy(history[HISTORY_SIZE-1], cmd, HISTORY_ENTRY_LEN-1);
         history[HISTORY_SIZE-1][HISTORY_ENTRY_LEN-1] = '\0';
@@ -42,7 +39,7 @@ const char* keyboard_history_next(void) {
 }
 
 void keyboard_history_reset_nav(void) {
-    history_nav = history_count; // point to "current empty line"
+    history_nav = history_count;
 }
 
 static bool ctrl_pressed = false;
@@ -70,7 +67,6 @@ static const char keymap_shift[128] = {
 /* 0x70 */ 0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0
 };
 
-// NumPad при NumLock ON
 static const char numpad_on[128] = {
     [0x47] = '7', [0x48] = '8', [0x49] = '9',
     [0x4B] = '4', [0x4C] = '5', [0x4D] = '6',
@@ -87,13 +83,11 @@ char keyboard_read_char(void) {
         while ((inb(KBD_STATUS) & 1) == 0);
         unsigned char ext = inb(KBD_DATA);
 
-        // Release
         if (ext & 0x80) {
-            if ((ext & 0x7F) == 0x1D) ctrl_pressed = false; // Right Ctrl release
+            if ((ext & 0x7F) == 0x1D) ctrl_pressed = false;
             return 0;
         }
 
-        // Right Ctrl make
         if (ext == 0x1D) { ctrl_pressed = true; return 0; }
 
             if (ext == 0x4B) return -1;  // Left
@@ -111,7 +105,7 @@ char keyboard_read_char(void) {
     if (sc & 0x80) {
         sc &= 0x7F;
         if (sc == 0x2A || sc == 0x36) shift_pressed = false;
-        if (sc == 0x1D) ctrl_pressed = false; // Left Ctrl release
+        if (sc == 0x1D) ctrl_pressed = false; 
         return 0;
     }
 
@@ -120,7 +114,7 @@ char keyboard_read_char(void) {
         return 0;
     }
 
-    if (sc == 0x1D) { // Left Ctrl make
+    if (sc == 0x1D) {
         ctrl_pressed = true;
         return 0;
     }
@@ -135,7 +129,6 @@ char keyboard_read_char(void) {
     if (sc < 128 && keymap[sc]) {
         char ch = shift_pressed ? keymap_shift[sc] : keymap[sc];
         if (ctrl_pressed) {
-            // map ctrl+letter to control codes (e.g., Ctrl+C -> 0x03)
             if (ch >= 'a' && ch <= 'z') {
                 if (ch == 'c') sigint_received = true;
                 return (char)(ch - 'a' + 1);
@@ -157,7 +150,6 @@ int keyboard_sigint_check(void) {
 }
 
 void keyboard_poll(void) {
-    // Non-blocking poll: process available scancodes to update ctrl state or detect Ctrl+C
     while (inb(KBD_STATUS) & 1) {
         unsigned char sc = inb(KBD_DATA);
         if (sc == 0xE0) {
@@ -206,11 +198,11 @@ void keyboard_read_line(char* buffer, int max_len) {
             buffer[len] = '\0';
             vga_putc('\n');
             break;
-        } else if (c == '\x03') { // Ctrl+C
+        } else if (c == '\x03') {
             buffer[0] = '\0';
             vga_print_color("^C\n", 0x0C);
             sigint_received = true;
-            break; // cancel current input
+            break;
         } else if (c == '\b') {
                     if (pos > 0) {
                         pos--;
@@ -229,12 +221,12 @@ void keyboard_read_line(char* buffer, int max_len) {
                         vga_putc(' ');
                         vga_set_cursor(cur - 1 - (len - pos));
                     }
-        } else if (c < 0) {  // Стрелки left/right
+        } else if (c < 0) {
             uint16_t cur = vga_get_cursor();
-            if (c == -1 && pos > 0) {  // Left
+            if (c == -1 && pos > 0) {
                 pos--;
                 vga_set_cursor(cur - 1);
-            } else if (c == -3 && pos < len) {  // Right
+            } else if (c == -3 && pos < len) {
                 pos++;
                 vga_set_cursor(cur + 1);
             }
@@ -250,13 +242,12 @@ void keyboard_read_line(char* buffer, int max_len) {
             vga_set_cursor(cur + 1);
         } else if (c < 0) {
             uint16_t cur = vga_get_cursor();
-            uint16_t line_start = cur - pos;  // начало строки (примерно)
+            uint16_t line_start = cur - pos;
 
-            if (c == -2) { // Up: previous history
+            if (c == -2) {
                 const char* h = keyboard_history_prev();
                 uint16_t cur2 = vga_get_cursor();
                 uint16_t line_start2 = cur2 - pos;
-                // clear line
                 vga_set_cursor(line_start2);
                 for (int i = 0; i < len; i++) vga_putc(' ');
                 vga_set_cursor(line_start2);
@@ -270,7 +261,7 @@ void keyboard_read_line(char* buffer, int max_len) {
                     len = 0; pos = 0; buffer[0] = '\0';
                 }
             }
-            else if (c == -4) { // Down: next history
+            else if (c == -4) {
                 const char* h = keyboard_history_next();
                 uint16_t cur2 = vga_get_cursor();
                 uint16_t line_start2 = cur2 - pos;
@@ -287,9 +278,9 @@ void keyboard_read_line(char* buffer, int max_len) {
                     len = 0; pos = 0; buffer[0] = '\0';
                 }
             }
-            else if (c == -1 && pos > 0) { pos--; vga_set_cursor(cur - 1); }  // Left
-            else if (c == -3 && pos < len) { pos++; vga_set_cursor(cur + 1); }  // Right
-            else if (c == -5 && pos < len) {  // Delete (удаляет справа)
+            else if (c == -1 && pos > 0) { pos--; vga_set_cursor(cur - 1); }
+            else if (c == -3 && pos < len) { pos++; vga_set_cursor(cur + 1); }
+            else if (c == -5 && pos < len) {
                 len--;
                 for (int i = pos; i < len; i++) buffer[i] = buffer[i + 1];
                 buffer[len] = '\0';
@@ -298,19 +289,17 @@ void keyboard_read_line(char* buffer, int max_len) {
                 vga_putc(' ');
                 vga_set_cursor(cur);
             }
-            else if (c == -7) {  // Home
+            else if (c == -7) {
                 vga_set_cursor(line_start);
                 pos = 0;
             }
-            else if (c == -8) {  // End
+            else if (c == -8) {
                 vga_set_cursor(line_start + len);
                 pos = len;
             }
-            // Insert — пока игнор или toggle mode
         }
     }
 }
 
 void keyboard_init() {
-    // Ничего не нужно
 }

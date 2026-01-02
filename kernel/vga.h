@@ -14,6 +14,6 @@ void vga_put_at(char c, uint8_t color, uint16_t pos);
 void vga_set_cursor(uint16_t pos);
 uint16_t vga_get_cursor(void);
 
-extern unsigned char vga_color;  // ← Добавь эту строку!
+extern unsigned char vga_color;
 
-#endif // VGA_H
+#endif

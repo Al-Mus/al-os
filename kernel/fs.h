@@ -1,11 +1,10 @@
-// kernel/fs.h
 #ifndef FS_H
 #define FS_H
 
 #define MAX_NAME_LEN   32
 #define MAX_CHILDREN   64
-#define MAX_FILE_SIZE  16384  // 16 KB
-#define MAX_NODES      256       // Увеличено, чтобы разместить больше /bin файлов
+#define MAX_FILE_SIZE  16384
+#define MAX_NODES      256
 
 typedef enum { FS_FILE, FS_DIR } fs_type;
 
@@ -21,7 +20,7 @@ typedef struct fs_node {
 
 extern fs_node* fs_root;
 extern fs_node* fs_current;
-extern char current_path[128];  // Добавлено для фикса промпта
+extern char current_path[128];
 
 fs_node* resolve_path(const char* path, fs_node* base);
 void fs_init(void);

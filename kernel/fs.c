@@ -2,16 +2,12 @@
 #include "string.h"
 #include "vga.h"
 
-// In-memory node store for the simple virtual FS
 static fs_node fs_nodes[MAX_NODES];
 static int node_count = 0;
 
-// Public globals (declared extern in fs.h)
 fs_node* fs_root = NULL;
 fs_node* fs_current = NULL;
 char current_path[128] = "";
-
-
 
 static fs_node* create_node(const char* name, fs_type type, fs_node* parent) {
     if (node_count >= MAX_NODES) return NULL;
@@ -62,7 +58,6 @@ static int split_path(const char* path, char segs[16][MAX_NAME_LEN]) {
     return seg;
 }
 
-/* Публичная функция — теперь без static */
 fs_node* resolve_path(const char* path, fs_node* base) {
     if (!path || !path[0]) return base;
     fs_node* cur = (path[0] == '/') ? fs_root : base;
@@ -87,7 +82,6 @@ static void update_current_path(void) {
     temp[0] = '\0';
     fs_node* cur = fs_current;
 
-    // Собираем путь от текущей директории к корню
     while (cur && cur != fs_root) {
         char part[MAX_NAME_LEN + 2];
         strcpy(part, "/");
@@ -130,7 +124,6 @@ void fs_list(const char* path) {
         return;
     }
 
-    // separate dirs and files
     fs_node* dirs[MAX_CHILDREN];
     fs_node* files[MAX_CHILDREN];
     int dcount = 0, fcount = 0;
@@ -139,7 +132,6 @@ void fs_list(const char* path) {
         else files[fcount++] = dir->children[i];
     }
 
-    // simple selection sort using strcmp (ASCII order: A-Z then a-z)
     for (int i = 0; i < dcount - 1; i++) {
         int min = i;
         for (int j = i + 1; j < dcount; j++) if (strcmp(dirs[j]->name, dirs[min]->name) < 0) min = j;
@@ -151,16 +143,14 @@ void fs_list(const char* path) {
         if (min != i) { fs_node* t = files[i]; files[i] = files[min]; files[min] = t; }
     }
 
-    // determine maximum name length for pretty columns (consider '/'' for dirs)
     int maxlen = 4;
     for (int i = 0; i < dcount; i++) { int l = 0; while (dirs[i]->name[l]) l++; if (l + 1 > maxlen) maxlen = l + 1; }
     for (int i = 0; i < fcount; i++) { int l = 0; while (files[i]->name[l]) l++; if (l > maxlen) maxlen = l; }
 
-    int colw = maxlen + 2; // spacing between columns
+    int colw = maxlen + 2;
     int linew = 0;
-    int screenw = 80; // conservative width
+    int screenw = 80;
 
-    // print dirs first with '/'
     for (int i = 0; i < dcount; i++) {
         char buf[64]; int p = 0;
         int j = 0; while (dirs[i]->name[j] && j < (int)sizeof(buf)-2) buf[p++] = dirs[i]->name[j++];
@@ -168,11 +158,10 @@ void fs_list(const char* path) {
         while (p < colw && p < (int)sizeof(buf)-1) buf[p++] = ' ';
         buf[p] = '\0';
         if (linew + colw > screenw) { vga_putc('\n'); linew = 0; }
-        vga_print_color(buf, 0x09); // dir color
+        vga_print_color(buf, 0x09);
         linew += colw;
     }
 
-    // then print files
     for (int i = 0; i < fcount; i++) {
         char buf[64]; int p = 0;
         int j = 0; while (files[i]->name[j] && j < (int)sizeof(buf)-1) buf[p++] = files[i]->name[j++];
