@@ -189,7 +189,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.3", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.3.1 - HotFix", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
