@@ -2,13 +2,16 @@ CC = gcc
 ASM = nasm
 LD = ld
 
-CFLAGS = -ffreestanding -O2 -Wall -Wextra -m32 -nostdlib
+CFLAGS = -ffreestanding -O2 -Wall -Wextra -m32 -nostdlib -Ikernel
 ASFLAGS = -f elf32
 
 TARGET = kernel.elf
 ISO = AlSystem.iso
 
-OBJS = boot/kernel_entry.o kernel/kernel.o kernel/vga.o kernel/keyboard.o kernel/fs.o
+OBJS = boot/kernel_entry.o kernel/kernel.o \
+       kernel/keyboard.o \
+       kernel/fs.o \
+       kernel/vga.o kernel/string.o
 
 all: $(TARGET)
 
@@ -26,9 +29,6 @@ iso: $(TARGET)
 	cp $(TARGET) iso/boot/kernel.elf
 	printf "set timeout=1\nset default=0\nmenuentry \"Test Al System\" {\n    multiboot /boot/kernel.elf\n    boot\n}\n" > iso/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) iso
-
-run: iso
-	qemu-system-i386 -cdrom $(ISO)
 
 clean:
 	rm -f $(OBJS) $(TARGET) $(ISO)

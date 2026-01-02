@@ -3,9 +3,9 @@
 #define FS_H
 
 #define MAX_NAME_LEN   32
-#define MAX_CHILDREN   16
-#define MAX_FILE_SIZE  512
-#define MAX_NODES      64        // ← ЭТО ОБЯЗАТЕЛЬНО!
+#define MAX_CHILDREN   64
+#define MAX_FILE_SIZE  16384  // 16 KB
+#define MAX_NODES      256       // Увеличено, чтобы разместить больше /bin файлов
 
 typedef enum { FS_FILE, FS_DIR } fs_type;
 
@@ -18,9 +18,12 @@ typedef struct fs_node {
     char            content[MAX_FILE_SIZE];
 } fs_node;
 
+
 extern fs_node* fs_root;
 extern fs_node* fs_current;
+extern char current_path[128];  // Добавлено для фикса промпта
 
+fs_node* resolve_path(const char* path, fs_node* base);
 void fs_init(void);
 void fs_list(const char* path);
 void fs_pwd(void);
@@ -30,5 +33,7 @@ int  fs_rm(const char* path);
 int  fs_touch(const char* path);
 int  fs_write(const char* path, const char* text);
 int  fs_cat(const char* path);
+
+fs_node* resolve_path(const char* path, fs_node* base);
 
 #endif

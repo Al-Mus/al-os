@@ -1,15 +1,17 @@
-// kernel/fs.c — полностью рабочий, без malloc, без ошибок
 #include "fs.h"
+#include "string.h"
 #include "vga.h"
-#include <string.h>
 
-fs_node fs_nodes[MAX_NODES];
-int node_count = 0;
+// In-memory node store for the simple virtual FS
+static fs_node fs_nodes[MAX_NODES];
+static int node_count = 0;
 
-fs_node* fs_root    = NULL;
+// Public globals (declared extern in fs.h)
+fs_node* fs_root = NULL;
 fs_node* fs_current = NULL;
+char current_path[128] = "";
 
-/* ======================= Вспомогательные ======================= */
+
 
 static fs_node* create_node(const char* name, fs_type type, fs_node* parent) {
     if (node_count >= MAX_NODES) return NULL;
@@ -49,7 +51,7 @@ static int split_path(const char* path, char segs[16][MAX_NAME_LEN]) {
                 j = 0;
             }
         } else {
-            segs[seg][j++] = path[i];
+            if (j < MAX_NAME_LEN - 1) segs[seg][j++] = path[i];
         }
         i++;
     }
@@ -60,7 +62,8 @@ static int split_path(const char* path, char segs[16][MAX_NAME_LEN]) {
     return seg;
 }
 
-static fs_node* resolve_path(const char* path, fs_node* base) {
+/* Публичная функция — теперь без static */
+fs_node* resolve_path(const char* path, fs_node* base) {
     if (!path || !path[0]) return base;
     fs_node* cur = (path[0] == '/') ? fs_root : base;
     char segs[16][MAX_NAME_LEN];
@@ -79,22 +82,45 @@ static fs_node* resolve_path(const char* path, fs_node* base) {
     return cur;
 }
 
-/* ======================= Публичные ======================= */
+static void update_current_path(void) {
+    char temp[128];
+    temp[0] = '\0';
+    fs_node* cur = fs_current;
+
+    // Собираем путь от текущей директории к корню
+    while (cur && cur != fs_root) {
+        char part[MAX_NAME_LEN + 2];
+        strcpy(part, "/");
+        strcat(part, cur->name);
+        strcat(part, temp);
+        strcpy(temp, part);
+        cur = cur->parent;
+    }
+    if (temp[0] == '\0') strcpy(temp, "/");
+    strcpy(current_path, temp);
+}
+
+/* ======================= Public Functions ======================= */
 
 void fs_init(void) {
     node_count = 0;
-
-    // Создаём корень с именем "/" — так надёжнее и точно работает
-    fs_root = create_node("/", FS_DIR, NULL);
+    fs_root = create_node("", FS_DIR, NULL);
+    strcpy(fs_root->name, "/");
     fs_current = fs_root;
+    update_current_path();
 
-    // Явно создаём стандартные папки
     fs_mkdir("bin");
+    fs_mkdir("dev");
+    fs_mkdir("etc");
+    fs_mkdir("lib");
+    fs_mkdir("tmp");
+    fs_mkdir("var");
     fs_mkdir("home");
-    fs_mkdir("sys");
-    fs_mkdir("system");
-    fs_mkdir("usr");
     fs_mkdir("mnt");
+    fs_mkdir("proc");
+    fs_mkdir("sys");
+    fs_mkdir("usr");
+    fs_mkdir("boot");
 }
 
 void fs_list(const char* path) {
@@ -103,31 +129,65 @@ void fs_list(const char* path) {
         vga_print_color("Not a directory\n", 0x0C);
         return;
     }
+
+    // separate dirs and files
+    fs_node* dirs[MAX_CHILDREN];
+    fs_node* files[MAX_CHILDREN];
+    int dcount = 0, fcount = 0;
     for (int i = 0; i < dir->child_count; i++) {
-        vga_print_color(dir->children[i]->name, 0x0A);
-        if (dir->children[i]->type == FS_DIR) vga_print_color("/", 0x0B);
-        vga_putc(' ');
+        if (dir->children[i]->type == FS_DIR) dirs[dcount++] = dir->children[i];
+        else files[fcount++] = dir->children[i];
     }
-    vga_putc('\n');
+
+    // simple selection sort using strcmp (ASCII order: A-Z then a-z)
+    for (int i = 0; i < dcount - 1; i++) {
+        int min = i;
+        for (int j = i + 1; j < dcount; j++) if (strcmp(dirs[j]->name, dirs[min]->name) < 0) min = j;
+        if (min != i) { fs_node* t = dirs[i]; dirs[i] = dirs[min]; dirs[min] = t; }
+    }
+    for (int i = 0; i < fcount - 1; i++) {
+        int min = i;
+        for (int j = i + 1; j < fcount; j++) if (strcmp(files[j]->name, files[min]->name) < 0) min = j;
+        if (min != i) { fs_node* t = files[i]; files[i] = files[min]; files[min] = t; }
+    }
+
+    // determine maximum name length for pretty columns (consider '/'' for dirs)
+    int maxlen = 4;
+    for (int i = 0; i < dcount; i++) { int l = 0; while (dirs[i]->name[l]) l++; if (l + 1 > maxlen) maxlen = l + 1; }
+    for (int i = 0; i < fcount; i++) { int l = 0; while (files[i]->name[l]) l++; if (l > maxlen) maxlen = l; }
+
+    int colw = maxlen + 2; // spacing between columns
+    int linew = 0;
+    int screenw = 80; // conservative width
+
+    // print dirs first with '/'
+    for (int i = 0; i < dcount; i++) {
+        char buf[64]; int p = 0;
+        int j = 0; while (dirs[i]->name[j] && j < (int)sizeof(buf)-2) buf[p++] = dirs[i]->name[j++];
+        buf[p++] = '/';
+        while (p < colw && p < (int)sizeof(buf)-1) buf[p++] = ' ';
+        buf[p] = '\0';
+        if (linew + colw > screenw) { vga_putc('\n'); linew = 0; }
+        vga_print_color(buf, 0x09); // dir color
+        linew += colw;
+    }
+
+    // then print files
+    for (int i = 0; i < fcount; i++) {
+        char buf[64]; int p = 0;
+        int j = 0; while (files[i]->name[j] && j < (int)sizeof(buf)-1) buf[p++] = files[i]->name[j++];
+        while (p < colw && p < (int)sizeof(buf)-1) buf[p++] = ' ';
+        buf[p] = '\0';
+        if (linew + colw > screenw) { vga_putc('\n'); linew = 0; }
+        vga_print_color(buf, 0x0F);
+        linew += colw;
+    }
+
+    if (linew) vga_putc('\n');
 }
 
 void fs_pwd(void) {
-    char path[256];
-    int pos = 255;
-    path[pos] = '\0';
-    fs_node* cur = fs_current;
-
-    while (cur && cur->parent) {
-        int len = 0;
-        while (cur->name[len]) len++;
-        pos -= len + 1;
-        if (pos < 0) break;
-        for (int i = len - 1; i >= 0; i--) path[pos + i + 1] = cur->name[i];
-        path[pos] = '/';
-        cur = cur->parent;
-    }
-    if (pos == 255) path[--pos] = '/';
-    vga_print_color(&path[pos], 0x0F);
+    vga_print_color(current_path, 0x0F);
     vga_putc('\n');
 }
 
@@ -135,31 +195,35 @@ int fs_mkdir(const char* path) {
     if (!path || !path[0]) return -1;
     char segs[16][MAX_NAME_LEN];
     int n = split_path(path, segs);
-    fs_node* cur = (path[0] == '/') ? fs_root : fs_current;
+    fs_node* parent = (path[0] == '/') ? fs_root : fs_current;
 
-    for (int i = 0; i < n; i++) {
-        fs_node* child = find_child(cur, segs[i]);
-        if (!child) {
-            child = create_node(segs[i], FS_DIR, cur);
-            if (!child) return -1;
-            cur->children[cur->child_count++] = child;
-        }
-        cur = child;
+    for (int i = 0; i < n - 1; i++) {
+        fs_node* child = find_child(parent, segs[i]);
+        if (!child || child->type != FS_DIR) return -1;
+        parent = child;
     }
-    return 0;
+    if (find_child(parent, segs[n-1])) return -1;
+    if (parent->child_count >= MAX_CHILDREN) { vga_print_color("Directory full\n", 0x0C); return -1; }
+
+    fs_node* d = create_node(segs[n-1], FS_DIR, parent);
+    if (d) { parent->children[parent->child_count++] = d; return 0; }
+    return -1;
 }
 
 int fs_cd(const char* path) {
+    if (!path || !path[0]) return -1;
     fs_node* node = resolve_path(path, fs_current);
     if (!node || node->type != FS_DIR) {
         vga_print_color("No such directory\n", 0x0C);
         return -1;
     }
     fs_current = node;
+    update_current_path();
     return 0;
 }
 
 int fs_rm(const char* path) {
+    if (!path || !path[0]) return -1;
     fs_node* node = resolve_path(path, fs_current);
     if (!node || node == fs_root) return -1;
     fs_node* parent = node->parent;
@@ -185,13 +249,15 @@ int fs_touch(const char* path) {
         parent = child;
     }
     if (find_child(parent, segs[n-1])) return -1;
+    if (parent->child_count >= MAX_CHILDREN) { vga_print_color("Directory full\n", 0x0C); return -1; }
 
     fs_node* f = create_node(segs[n-1], FS_FILE, parent);
-    if (f) parent->children[parent->child_count++] = f;
-    return 0;
+    if (f) { parent->children[parent->child_count++] = f; return 0; }
+    return -1;
 }
 
 int fs_write(const char* path, const char* text) {
+    if (!path || !path[0]) return -1;
     fs_node* node = resolve_path(path, fs_current);
     if (!node || node->type != FS_FILE) return -1;
     int i = 0;
@@ -204,12 +270,14 @@ int fs_write(const char* path, const char* text) {
 }
 
 int fs_cat(const char* path) {
+    if (!path || !path[0]) return -1;
     fs_node* node = resolve_path(path, fs_current);
     if (!node || node->type != FS_FILE) {
         vga_print_color("Not a file\n", 0x0C);
         return -1;
     }
-    vga_print_color(node->content[0] ? node->content : "(empty)", 0x0F);
+    if (node->content[0]) vga_print_color(node->content, 0x0F);
+    else vga_print_color("(empty)", 0x08);
     vga_putc('\n');
     return 0;
 }
