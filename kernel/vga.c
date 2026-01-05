@@ -61,3 +61,15 @@ void vga_clear(void) {
     cursor_pos = 0;
     vga_set_cursor(cursor_pos);
 }
+
+void vga_move_cursor_back(void) {
+    uint16_t pos = vga_get_cursor();
+    if (pos > 0) {
+        vga_set_cursor(pos - 1);
+    }
+}
+
+void vga_move_cursor_forward(void) {
+    uint16_t pos = vga_get_cursor();
+    vga_set_cursor(pos + 1);
+}

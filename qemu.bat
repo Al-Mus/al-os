@@ -1,1 +1,1 @@
-qemu-system-i386 -cdrom TestAlSystem.iso -boot d -m 512M
+qemu-system-i386 -cdrom AlSystem.iso -m 512M -no-audio

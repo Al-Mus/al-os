@@ -11,7 +11,8 @@ ISO = AlSystem.iso
 OBJS = boot/kernel_entry.o kernel/kernel.o \
        kernel/keyboard.o \
        kernel/fs.o \
-       kernel/vga.o kernel/string.o
+       kernel/vga.o kernel/string.o \
+	   kernel/nano.o
 
 all: $(TARGET)
 
@@ -20,7 +21,10 @@ boot/kernel_entry.o: boot/kernel_entry.asm
 
 kernel/%.o: kernel/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
+	
+nano.o: nano.c nano.h
+	$(CC) $(CFLAGS) -c $< -o $@
+	
 $(TARGET): $(OBJS)
 	$(LD) -T linker.ld -m elf_i386 -o $(TARGET) $(OBJS)
 

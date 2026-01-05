@@ -4,9 +4,19 @@
 #include "fs.h"
 #include "ports.h"
 #include "string.h"
+#include "nano.h"
 
 #define MAX_CMD_LEN 256
+
+#define HISTORY_SIZE 8
+#define HISTORY_LEN MAX_CMD_LEN
 char user[32] = "root";
+
+extern char history[HISTORY_SIZE][HISTORY_LEN];
+extern int history_count;
+extern int history_nav;
+void cmd_history(void);
+void print(const char *str);
 
 char* strchr(const char* s, int c) {
     while (*s) { if (*s == (char)c) return (char*)s; s++; }
@@ -35,6 +45,12 @@ char* strrchr(const char* s, int c) {
     return (char*)last;
 }
 
+size_t strlen(const char *str) {
+    const char *s = str;
+    while (*s) s++;
+    return (size_t)(s - str);
+}
+
 void itoa(int value, char* str, int base) {
     char* ptr = str, *ptr1 = str;
     if (base < 2 || base > 36) { *str = '\0'; return; }
@@ -51,7 +67,24 @@ void itoa(int value, char* str, int base) {
     while (ptr1 < ptr) { char t = *ptr; *ptr-- = *ptr1; *ptr1++ = t; }
 }
 
-/* --- Parse expr (простой, слева направо) --- */
+void keyboard_history_add(const char* cmd);
+
+void cmd_history(void) {
+    if (history_count == 0) {
+        vga_print_color("History is empty\n", 0x0E);
+        return;
+    }
+    char num[8];
+    for (int i = 0; i < history_count; i++) {
+        if (!history[i][0]) continue;
+        itoa(i + 1, num, 10);
+        vga_print_color(num, 0x08);
+        vga_print_color("  ", 0x08);
+        vga_print_color(history[i], 0x0F);
+        vga_putc('\n');
+    }
+}
+
 static int parse_expr(const char* s, int* a, char* op, int* b) {
     int i = 0;
     while (s[i] == ' ') i++;
@@ -71,7 +104,6 @@ static int parse_expr(const char* s, int* a, char* op, int* b) {
     return 1;
 }
 
-/* --- Beep --- */
 static void beep_pit(unsigned int frequency, unsigned int duration_ms) {
     if (frequency == 0) return;
     unsigned int div = 1193180 / frequency;
@@ -84,7 +116,6 @@ static void beep_pit(unsigned int frequency, unsigned int duration_ms) {
     outb(0x61, tmp & 0xFC);
 }
 
-/* --- Slow print (Brokem) --- */
 static void slowprint_line(const char* str, uint8_t color, unsigned int delay) {
     uint8_t old = vga_color;
     vga_color = color;
@@ -105,7 +136,6 @@ static void slowprint_line(const char* str, uint8_t color, unsigned int delay) {
     vga_color = old;
 }
 
-/* --- Prompt --- */
 static void show_prompt(void) {
     vga_print_color(user, 0x0A);
     vga_print_color("@al-os", 0x0B);
@@ -113,7 +143,6 @@ static void show_prompt(void) {
     vga_print_color("> ", 0x07);
 }
 
-/* --- Commands --- */
 static const struct { const char* cmd; const char* desc; } help_table[] = {
     {"help", "Show this help or help <cmd>"},
     {"clear", "Clear screen"},
@@ -139,7 +168,12 @@ static const struct { const char* cmd; const char* desc; } help_table[] = {
     {"meminfo", "Kernel memory info"},
     {"time", "Show RTC time"},
     {"reboot", "Reboot machine"},
-    {"shutdown", "Shutdown machine"}
+    {"shutdown", "Shutdown machine"},
+    {"whoami",   "Display current user name"},
+    {"date",     "Show current date and time"},
+    {"colorbar", "Display VGA color palette"},
+    {"memtest",  "Simple memory write/read test"},
+    {"nano", "Simple text editor"},
 };
 
 static void cmd_help(const char* arg) {
@@ -189,7 +223,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.3.1 - HotFix", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.3.3 - nano and arrows!\n", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
@@ -357,35 +391,192 @@ static void cmd_tree(fs_node* node, int depth) {
     }
 }
 
+static void cmd_whoami(void) {
+    vga_print_color(user, 0x0A);
+    vga_print_color("\n", 0x0F);
+}
+
+static void cmd_date(void) {
+    rtc_time now;
+    rtc_read(&now);
+
+    char buf[64];
+
+    itoa(now.day, buf, 10);
+    if (now.day < 10) vga_print("0");
+    vga_print(buf);
+    vga_print(".");
+
+    itoa(now.month, buf, 10);
+    if (now.month < 10) vga_print("0");
+    vga_print(buf);
+    vga_print(".");
+
+    itoa(now.year, buf, 10);
+    vga_print(buf);
+    vga_print(" ");
+
+    itoa(now.hour, buf, 10);
+    if (now.hour < 10) vga_print("0");
+    vga_print(buf);
+    vga_print(":");
+
+    itoa(now.min, buf, 10);
+    if (now.min < 10) vga_print("0");
+    vga_print(buf);
+    vga_print(":");
+
+    itoa(now.sec, buf, 10);
+    if (now.sec < 10) vga_print("0");
+    vga_print(buf);
+    vga_putc('\n');
+}
+
+static void cmd_colorbar(void) {
+    const char *colors[] = {
+        "Black   ", "Blue    ", "Green   ", "Cyan    ",
+        "Red     ", "Magenta ", "Brown   ", "Light Gray",
+        "Dark Gray", "Light Blue", "Light Green", "Light Cyan",
+        "Light Red", "Light Magenta", "Yellow  ", "White   "
+    };
+
+    vga_print("\n");
+
+    for (int bg = 0; bg < 8; bg++) {
+        for (int fg = 0; fg < 16; fg++) {
+            uint8_t color = (bg << 4) | fg;
+            uint8_t old_color = vga_color;
+            vga_color = color;
+
+            vga_print("  ");
+            char num[4];
+            itoa(fg + bg*16, num, 10);
+            if (strlen(num) == 1) vga_print("0");
+            if (strlen(num) == 2) vga_print(" ");
+            vga_print(num);
+
+            vga_color = old_color;
+            vga_print(" ");
+        }
+        vga_putc('\n');
+    }
+
+    vga_print("\nStandard VGA text colors (0-15 foreground, 0-7 background):\n");
+    for (int i = 0; i < 16; i++) {
+        char buf[8];
+        itoa(i, buf, 10);
+        vga_print_color(buf, i);
+        vga_print(" ");
+        vga_print_color(colors[i], i);
+        vga_putc('\n');
+    }
+    vga_putc('\n');
+}
+
+static void cmd_memtest(void) {
+    extern char end;
+    uint32_t start_addr = (uint32_t)&end + 0x1000;
+    uint32_t test_size = 0x100000;
+
+    vga_print_color("Simple memory test...\n", 0x0E);
+    vga_print("Testing range: 0x");
+    char buf[16];
+    itoa(start_addr, buf, 16);
+    vga_print(buf);
+    vga_print(" - 0x");
+    itoa(start_addr + test_size, buf, 16);
+    vga_print(buf);
+    vga_print("\n");
+
+    uint8_t *ptr = (uint8_t*)start_addr;
+    int errors = 0;
+
+    vga_print("Writing 0xAA... ");
+    for (uint32_t i = 0; i < test_size; i++) {
+        ptr[i] = 0xAA;
+    }
+    vga_print_color("OK\n", 0x0A);
+
+    vga_print("Reading 0xAA...  ");
+    for (uint32_t i = 0; i < test_size; i++) {
+        if (ptr[i] != 0xAA) {
+            errors++;
+            if (errors <= 5) {
+                vga_print_color("Error at 0x", 0x0C);
+                itoa((uint32_t)&ptr[i], buf, 16);
+                vga_print(buf);
+                vga_print(" (");
+                itoa(ptr[i], buf, 16);
+                vga_print(buf);
+                vga_print(")\n");
+            }
+        }
+    }
+    if (errors == 0) vga_print_color("OK - all correct\n", 0x0A);
+    else {
+        vga_print_color("Errors found: ", 0x0C);
+        itoa(errors, buf, 10);
+        vga_print(buf);
+        vga_print("\n");
+    }
+
+    vga_print("\n");
+}
+
+void wait_cycles(uint32_t cycles) {
+    for (volatile uint32_t i = 0; i < cycles; i++);
+}
+
 /* --- Kernel main --- */
-void kernel_main(void) {
+void kernel_main(void)
+{
     vga_clear();
-    vga_print_color("Welcome to AL-OS!\nType 'help' for commands.\n\n", 0x0A);
+    vga_print_color("Welcome to AL-OS!\n", 0x0A);
+    vga_print_color("Type 'help' to see available commands\n\n", 0x0F);
 
     fs_init();
     fs_cd("/home");
 
-    int __cmdcnt = (int)(sizeof(help_table) / sizeof(help_table[0]));
-    for (int __i = 0; __i < __cmdcnt; __i++) {
-        char __path[64]; __path[0] = '\0';
-        strcpy(__path, "/bin/");
-        int k = 0; while (help_table[__i].cmd[k] && k < 31) { __path[5 + k] = help_table[__i].cmd[k]; k++; }
-        __path[5 + k] = '\0';
-        if (fs_touch(__path) != 0) break;
+    rtc_time boot_time;
+    rtc_read(&boot_time);
+    boot_seconds = time_to_seconds(&boot_time);
+
+    int cmd_count = (int)(sizeof(help_table) / sizeof(help_table[0]));
+    for (int i = 0; i < cmd_count; i++)
+    {
+        char path[64];
+        strcpy(path, "/bin/");
+        size_t len = strlen(path);
+        size_t remain = sizeof(path) - len - 1;
+        size_t to_copy = strlen(help_table[i].cmd);
+        if (to_copy > remain) to_copy = remain;
+
+        int j;
+        for (j = 0; j < (int)to_copy; j++)
+            path[len + j] = help_table[i].cmd[j];
+        path[len + j] = '\0';
     }
 
-    rtc_time now; rtc_read(&now); boot_seconds = time_to_seconds(&now);
-
     char cmd[MAX_CMD_LEN];
-    while (1) {
+
+    while (1)
+    {
         show_prompt();
         keyboard_read_line(cmd, MAX_CMD_LEN);
-        if (cmd[0] == 0) continue;
+
+        if (cmd[0] == '\0' || cmd[0] == '\n')
+            continue;
+
         keyboard_history_add(cmd);
 
         char* space = strchr(cmd, ' ');
         char* args = "";
-        if (space) { *space = 0; args = space + 1; }
+        if (space)
+        {
+            *space = '\0';
+            args = space + 1;
+            while (*args == ' ') args++;
+        }
 
         if (strcmp(cmd, "help") == 0) cmd_help(args);
         else if (strcmp(cmd, "clear") == 0) vga_clear();
@@ -463,6 +654,14 @@ void kernel_main(void) {
             outb(0x64, 0xFE);
             for(;;) asm("hlt");
         }
+        else if (strcmp(cmd, "whoami") == 0)    cmd_whoami();
+        else if (strcmp(cmd, "date") == 0)      cmd_date();
+        else if (strcmp(cmd, "colorbar") == 0)  cmd_colorbar();
+        else if (strcmp(cmd, "memtest") == 0)   cmd_memtest();
+        else if (strcmp(cmd, "nano") == 0) {
+            if (args[0]) nano_edit(args);
+            else vga_print_color("Usage: nano <file>\n", 0x0C);
+            }
         else vga_print_color("Command not found\n", 0x0C);
     }
 }
