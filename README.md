@@ -57,6 +57,16 @@ https://al-mus.github.io/al-os
 
 ---
 
+## Билд
+
+Что бы сбилдить проект вам надо будет скачать библиотеки
+Debian/Ubuntu:
+  sudo apt install -y build-essential gcc-i686-linux-gnu gcc-14-i686-linux-gnu libc6-dev-i386 binutils nasm  grub-pc-bin grub-common xorriso
+Arch:
+  sudo pacman -S --needed base-devel gcc gcc-multilib lib32-glibc binutils nasm grub xorriso 
+
+---
+
 ## Запуск
 
 Инструкция по запуску появится позже.
@@ -135,6 +145,16 @@ https://al-mus.github.io/al-os
 ## Releases
 
 ➡ [![Releases](https://img.shields.io/github/v/release/Al-Mus/al-os?label=Releases\&color=blue)](https://github.com/Al-Mus/al-os/releases)
+
+---
+
+## Build
+
+To build you need download some libs
+Debian/Ubuntu:
+  sudo apt install -y build-essential gcc-i686-linux-gnu gcc-14-i686-linux-gnu libc6-dev-i386 binutils nasm  grub-pc-bin grub-common xorriso
+Arch:
+  sudo pacman -S --needed base-devel gcc gcc-multilib lib32-glibc binutils nasm grub xorriso 
 
 ---
 
