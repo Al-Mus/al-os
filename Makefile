@@ -9,11 +9,11 @@ TARGET = kernel.elf
 ISO = AlSystem.iso
 
 OBJS = boot/kernel_entry.o kernel/kernel.o \
-       kernel/keyboard.o \
-       kernel/fs.o \
-       kernel/vga.o kernel/string.o \
-	   kernel/nano.o \
-	   kernel/panic.o
+       kernel/drivers/keyboard.o \
+       kernel/fs/fs.o \
+       kernel/drivers/vga.o kernel/utils/string.o \
+	   kernel/utils/nano.o \
+	   kernel/utils/panic.o \
 
 all: $(TARGET)
 
@@ -41,3 +41,4 @@ clean-all:
 
 clean:
 	rm -f $(OBJS) $(TARGET)
+	rm -rf iso
