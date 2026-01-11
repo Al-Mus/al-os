@@ -26,7 +26,7 @@ fs_node* resolve_path(const char* path, fs_node* base);
 void fs_init(void);
 void fs_list(const char* path);
 void fs_pwd(void);
-int  fs_mkdir(const char* path);
+int  fs_mkdir(const char* name);
 int  fs_cd(const char* path);
 int  fs_rm(const char* path);
 int  fs_touch(const char* path);

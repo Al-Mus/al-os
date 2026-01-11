@@ -98,6 +98,15 @@ static void update_current_path(void) {
     strcpy(current_path, temp);
 }
 
+static void rtrim(char* str) {
+    if (!str || !*str) return;
+    char* end = str + strlen(str) - 1;
+    while (end >= str && (*end == ' ' || *end == '\t')) {
+        *end = '\0';
+        end--;
+    }
+}
+
 /* ======================= Public Functions ======================= */
 
 void fs_init(void) {
@@ -178,8 +187,19 @@ void fs_pwd(void) {
 
 int fs_mkdir(const char* path) {
     if (!path || !path[0]) return -1;
+
     char segs[16][MAX_NAME_LEN];
     int n = split_path(path, segs);
+
+    for (int i = 0; i < n; i++) {
+        rtrim(segs[i]);
+    }
+
+    if (n == 0 || segs[n-1][0] == '\0') {
+        vga_print_color("Invalid directory name\n", 0x0C);
+        return -1;
+    }
+
     fs_node* parent = (path[0] == '/') ? fs_root : fs_current;
 
     for (int i = 0; i < n - 1; i++) {
@@ -188,16 +208,17 @@ int fs_mkdir(const char* path) {
         parent = child;
     }
 
-    if (find_child(parent, segs[n-1])) return -1;
+    const char* last = segs[n-1];
+
+    if (find_child(parent, last)) return -1;
+
     if (parent->child_count >= MAX_CHILDREN) {
         vga_print_color("Directory full\n", 0x0C);
         return -1;
     }
 
-    fs_node* d = create_node(segs[n-1], FS_DIR, parent);
-    if (!d) {
-        panic("Filesystem", "failed to create directory node", __func__);
-    }
+    fs_node* d = create_node(last, FS_DIR, parent);
+    if (!d) panic("Filesystem", "failed to create directory node", __func__);
 
     parent->children[parent->child_count++] = d;
     return 0;
