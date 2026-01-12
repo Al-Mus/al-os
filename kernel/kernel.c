@@ -7,6 +7,7 @@
 #include "utils/string.h"
 #include "utils/nano.h"
 #include "utils/fm.h"
+#include "utils/screensaver.h"
 
 #define MAX_CMD_LEN 128
 
@@ -156,7 +157,8 @@ static const struct { const char* cmd; const char* desc; } help_table[] = {
     {"memtest",  "Simple memory write/read test"},
     {"nano", "Simple text editor"},
     {"panic", "Trigger kernel panic"},
-    {"fm", "Launch file manager"}
+    {"fm", "Launch file manager"},
+    {"screensaver", "Launch screensaver"}
 };
 
 static void cmd_help(const char* arg) {
@@ -206,7 +208,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.3.7 - File manager\n", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.3.8 - Screensaver!\n", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
@@ -634,6 +636,10 @@ static int execute_command(char* cmd) {
     }
     else if (strcmp(cmd, "fm") == 0) {
         fm_run();
+        return 0;
+    }
+    else if (strcmp(cmd, "ss") == 0 || strcmp(cmd, "screensaver") == 0) {
+        screensaver_run();
         return 0;
     }
     else vga_print_color("Command not found\n", 0x0C);

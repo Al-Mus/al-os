@@ -11,10 +11,12 @@ ISO = AlSystem.iso
 OBJS = boot/kernel_entry.o kernel/kernel.o \
        kernel/drivers/keyboard.o \
        kernel/fs/fs.o \
-       kernel/drivers/vga.o kernel/utils/string.o \
-	   kernel/utils/nano.o \
-	   kernel/utils/panic.o \
-	   kernel/utils/fm.o
+       kernel/drivers/vga.o \
+       kernel/utils/string.o \
+       kernel/utils/nano.o \
+       kernel/utils/panic.o \
+       kernel/utils/fm.o \
+       kernel/utils/screensaver.o \
 
 all: $(TARGET)
 
@@ -23,8 +25,14 @@ boot/kernel_entry.o: boot/kernel_entry.asm
 
 kernel/%.o: kernel/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
-	
-nano.o: nano.c nano.h
+
+kernel/drivers/%.o: kernel/drivers/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel/utils/%.o: kernel/utils/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel/fs/%.o: kernel/fs/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(OBJS)
@@ -33,7 +41,7 @@ $(TARGET): $(OBJS)
 iso: $(TARGET)
 	mkdir -p iso/boot/grub
 	cp $(TARGET) iso/boot/kernel.elf
-	printf "set timeout=1\nset default=0\nmenuentry \"Boot Al-OS\" {\n    multiboot /boot/kernel.elf\n    boot\n}\n" > iso/boot/grub/grub.cfg
+	printf 'set timeout=1\nset default=0\nmenuentry "Boot Al-OS" {\n    multiboot /boot/kernel.elf\n    boot\n}\n' > iso/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO) iso
 
 clean-all:
@@ -43,3 +51,5 @@ clean-all:
 clean:
 	rm -f $(OBJS) $(TARGET)
 	rm -rf iso
+
+.PHONY: all iso clean clean-all
