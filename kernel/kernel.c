@@ -6,6 +6,7 @@
 #include "utils/ports.h"
 #include "utils/string.h"
 #include "utils/nano.h"
+#include "utils/fm.h"
 
 #define MAX_CMD_LEN 128
 
@@ -155,6 +156,7 @@ static const struct { const char* cmd; const char* desc; } help_table[] = {
     {"memtest",  "Simple memory write/read test"},
     {"nano", "Simple text editor"},
     {"panic", "Trigger kernel panic"},
+    {"fm", "Launch file manager"}
 };
 
 static void cmd_help(const char* arg) {
@@ -204,7 +206,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.3.6 - New mkdir and &&\n", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.3.7 - File manager\n", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
@@ -252,11 +254,13 @@ static long boot_seconds = 0;
 
 
 static void cmd_slowfetch(void) {
-    slowprint_line(" __________ ", 0x0B, 80000);
-    slowprint_line(" ", 0x0B, 80000);
-    slowprint_line("    Soon    ", 0x0B, 80000);
-    slowprint_line(" ", 0x0B, 80000);
-    slowprint_line(" __________ ", 0x07, 50000);
+    slowprint_line("", 0x0B, 50000);
+    slowprint_line("      _    _         ___  ____  ", 0x0B, 50000);
+    slowprint_line("     / \\  | |       / _ \\/ ___| ", 0x0B, 50000);
+    slowprint_line("    / _ \\ | |      | | | \\___ \\ ", 0x0B, 50000);
+    slowprint_line("   / ___ \\| |___   | |_| |___) |", 0x0B, 50000);
+    slowprint_line("  /_/   \\_\\_____|   \\___/|____/ ", 0x0B, 50000);
+    slowprint_line("", 0x07, 50000);
     cmd_sysinfo();
 }
 
@@ -627,6 +631,10 @@ static int execute_command(char* cmd) {
         } else {
             panic("Shell", "User requested panic", __func__);
         }
+    }
+    else if (strcmp(cmd, "fm") == 0) {
+        fm_run();
+        return 0;
     }
     else vga_print_color("Command not found\n", 0x0C);
         return 127;

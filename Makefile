@@ -14,6 +14,7 @@ OBJS = boot/kernel_entry.o kernel/kernel.o \
        kernel/drivers/vga.o kernel/utils/string.o \
 	   kernel/utils/nano.o \
 	   kernel/utils/panic.o \
+	   kernel/utils/fm.o
 
 all: $(TARGET)
 
