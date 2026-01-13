@@ -1,0 +1,7 @@
+Создание дисков (Линукс)/ Creating disks (Linux):
+
+Запустите файл "create_disks.sh"
+Run file "create_disks.sh"
+
+Запуск / Run:
+qemu-system-i386 -boot d -cdrom AlSystem.iso -drive file="name-disk",format=raw -m 64M

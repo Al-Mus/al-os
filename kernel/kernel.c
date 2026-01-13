@@ -8,6 +8,8 @@
 #include "utils/nano.h"
 #include "utils/fm.h"
 #include "utils/screensaver.h"
+#include "drivers/ata.h"
+#include "fs/fat.h"
 
 #define MAX_CMD_LEN 128
 
@@ -158,7 +160,20 @@ static const struct { const char* cmd; const char* desc; } help_table[] = {
     {"nano", "Simple text editor"},
     {"panic", "Trigger kernel panic"},
     {"fm", "Launch file manager"},
-    {"screensaver", "Launch screensaver"}
+    {"screensaver", "Launch screensaver"},
+    {"mount", "Mount FAT disk (mount 0)"},
+    {"umount", "Unmount FAT disk"},
+    {"fatls", "List FAT directory"},
+    {"fatcd", "Change FAT directory"},
+    {"fatpwd", "Show FAT current path"},
+    {"fatcat", "Show FAT file contents"},
+    {"fatmkdir", "Create FAT directory"},
+    {"fatrm", "Remove FAT file/dir"},
+    {"fattouch", "Create FAT file"},
+    {"fatwrite", "Write to FAT file"},
+    {"fatinfo", "Show FAT info"},
+    {"disks", "Show detected disks"},
+    {"fat", "Enter FAT shell mode"},
 };
 
 static void cmd_help(const char* arg) {
@@ -208,7 +223,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.3.8 - Screensaver!\n", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.4 - FAT12/16/32!\n", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
@@ -254,6 +269,98 @@ static long time_to_seconds(const rtc_time* t) {
 
 static long boot_seconds = 0;
 
+static void fat_shell(void) {
+    if (!fat_is_mounted()) {
+        vga_print_color("No FAT filesystem mounted. Use 'mount 0' first.\n", 0x0C);
+        return;
+    }
+    
+    vga_print_color("Entering FAT shell. Type 'exit' to return.\n", 0x0A);
+    
+    char cmd[MAX_CMD_LEN];
+    
+    while (1) {
+        vga_print_color("fat:", 0x0B);
+        vga_print_color(fat_get_current_path(), 0x0E);
+        vga_print_color("> ", 0x07);
+        
+        keyboard_read_line(cmd, MAX_CMD_LEN);
+        
+        if (cmd[0] == '\0' || cmd[0] == '\n') continue;
+        
+        char* space = strchr(cmd, ' ');
+        char* args = "";
+        if (space) {
+            *space = '\0';
+            args = space + 1;
+            while (*args == ' ') args++;
+        }
+        
+        if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0) {
+            vga_print_color("Exiting FAT shell\n", 0x0A);
+            break;
+        }
+        else if (strcmp(cmd, "help") == 0) {
+            vga_print_color("FAT Shell Commands:\n", 0x0E);
+            vga_print_color("  ls [path]      - List directory\n", 0x0F);
+            vga_print_color("  cd <path>      - Change directory\n", 0x0F);
+            vga_print_color("  pwd            - Print working directory\n", 0x0F);
+            vga_print_color("  cat <file>     - Display file contents\n", 0x0F);
+            vga_print_color("  mkdir <name>   - Create directory\n", 0x0F);
+            vga_print_color("  touch <name>   - Create empty file\n", 0x0F);
+            vga_print_color("  rm <name>      - Remove file/directory\n", 0x0F);
+            vga_print_color("  write <f> <t>  - Write text to file\n", 0x0F);
+            vga_print_color("  info           - Filesystem info\n", 0x0F);
+            vga_print_color("  exit           - Exit FAT shell\n", 0x0F);
+        }
+        else if (strcmp(cmd, "ls") == 0) {
+            fat_ls(args[0] ? args : NULL);
+        }
+        else if (strcmp(cmd, "cd") == 0) {
+            if (args[0]) fat_cd(args);
+            else fat_cd("/");
+        }
+        else if (strcmp(cmd, "pwd") == 0) {
+            fat_pwd();
+        }
+        else if (strcmp(cmd, "cat") == 0) {
+            if (args[0]) fat_cat(args);
+            else vga_print_color("Usage: cat <file>\n", 0x0C);
+        }
+        else if (strcmp(cmd, "mkdir") == 0) {
+            if (args[0]) fat_mkdir(args);
+            else vga_print_color("Usage: mkdir <name>\n", 0x0C);
+        }
+        else if (strcmp(cmd, "touch") == 0) {
+            if (args[0]) fat_touch(args);
+            else vga_print_color("Usage: touch <name>\n", 0x0C);
+        }
+        else if (strcmp(cmd, "rm") == 0) {
+            if (args[0]) fat_rm(args);
+            else vga_print_color("Usage: rm <name>\n", 0x0C);
+        }
+        else if (strcmp(cmd, "write") == 0) {
+            char* text = strchr(args, ' ');
+            if (text) {
+                *text = '\0';
+                text++;
+                fat_write(args, text, strlen(text));
+                vga_print_color("Written\n", 0x0A);
+            } else {
+                vga_print_color("Usage: write <file> <text>\n", 0x0C);
+            }
+        }
+        else if (strcmp(cmd, "info") == 0) {
+            fat_info();
+        }
+        else if (strcmp(cmd, "clear") == 0) {
+            vga_clear();
+        }
+        else {
+            vga_print_color("Unknown command. Type 'help' for list.\n", 0x0C);
+        }
+    }
+}
 
 static void cmd_slowfetch(void) {
     slowprint_line("", 0x0B, 50000);
@@ -641,6 +748,80 @@ static int execute_command(char* cmd) {
     else if (strcmp(cmd, "ss") == 0 || strcmp(cmd, "screensaver") == 0) {
         screensaver_run();
         return 0;
+    }
+    else if (strcmp(cmd, "disks") == 0) {
+        ata_init();
+        vga_print_color("Detected drives:\n", 0x0E);
+        for (int i = 0; i < 4; i++) {
+            if (ata_drive_exists(i)) {
+                ata_device_t* dev = ata_get_device(i);
+                char buf[16];
+                itoa(i, buf, 10);
+                vga_print_color("  Drive ", 0x0F);
+                vga_print(buf);
+                vga_print_color(": ", 0x0F);
+                vga_print_color(dev->model, 0x0A);
+                vga_print_color(" (", 0x08);
+                itoa(dev->size / 2048, buf, 10);  // MB
+                vga_print(buf);
+                vga_print_color(" MB)\n", 0x08);
+            }
+        }
+    }
+    else if (strcmp(cmd, "mount") == 0) {
+        int drive = 0;
+        if (args[0]) drive = args[0] - '0';
+        if (fat_mount(drive) == 0) {
+            vga_print_color("Mounted ", 0x0A);
+            vga_print_color(fat_get_type_str(), 0x0E);
+            vga_print_color(" filesystem\n", 0x0A);
+        }
+    }
+    else if (strcmp(cmd, "umount") == 0) {
+        fat_unmount();
+        vga_print_color("Unmounted\n", 0x0A);
+    }
+    else if (strcmp(cmd, "fatls") == 0) {
+        fat_ls(args[0] ? args : NULL);
+    }
+    else if (strcmp(cmd, "fatcd") == 0) {
+        if (args[0]) fat_cd(args);
+        else fat_cd("/");
+    }
+    else if (strcmp(cmd, "fatpwd") == 0) {
+        fat_pwd();
+    }
+    else if (strcmp(cmd, "fatcat") == 0) {
+        if (args[0]) fat_cat(args);
+        else vga_print_color("Usage: fatcat <file>\n", 0x0C);
+    }
+    else if (strcmp(cmd, "fatmkdir") == 0) {
+        if (args[0]) fat_mkdir(args);
+        else vga_print_color("Usage: fatmkdir <name>\n", 0x0C);
+    }
+    else if (strcmp(cmd, "fatrm") == 0) {
+        if (args[0]) fat_rm(args);
+        else vga_print_color("Usage: fatrm <name>\n", 0x0C);
+    }
+    else if (strcmp(cmd, "fattouch") == 0) {
+        if (args[0]) fat_touch(args);
+        else vga_print_color("Usage: fattouch <name>\n", 0x0C);
+    }
+    else if (strcmp(cmd, "fatwrite") == 0) {
+        char* text = strchr(args, ' ');
+        if (text) {
+            *text = '\0';
+            text++;
+            fat_write(args, text, strlen(text));
+        } else {
+            vga_print_color("Usage: fatwrite <file> <text>\n", 0x0C);
+        }
+    }
+    else if (strcmp(cmd, "fatinfo") == 0) {
+        fat_info();
+    }
+    else if (strcmp(cmd, "fat") == 0) {
+        fat_shell();
     }
     else vga_print_color("Command not found\n", 0x0C);
         return 127;

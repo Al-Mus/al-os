@@ -4,11 +4,9 @@
 #include "string.h"
 #include "ports.h"
 
-/* ============== Константы ============== */
 #define SCR_WIDTH  80
 #define SCR_HEIGHT 25
 
-/* ============== Случайные числа ============== */
 static unsigned int rand_seed = 12345;
 
 static unsigned int rand(void) {
@@ -29,7 +27,6 @@ static void rand_init(void) {
     if (rand_seed == 0) rand_seed = 12345;
 }
 
-/* ============== VGA функции ============== */
 static void scr_put(int x, int y, char c, uint8_t color) {
     if (x < 0 || x >= SCR_WIDTH || y < 0 || y >= SCR_HEIGHT) return;
     vga_put_at(c, color, y * SCR_WIDTH + x);
@@ -43,14 +40,10 @@ static void scr_clear(uint8_t color) {
     }
 }
 
-/* ============== КЛАВИАТУРА (исправленная) ============== */
-
-// Проверка есть ли данные в буфере клавиатуры
 static int kbd_has_data(void) {
     return inb(0x64) & 1;
 }
 
-// Читаем и выбрасываем все данные из буфера
 static void kbd_flush(void) {
     while (kbd_has_data()) {
         inb(0x60);
@@ -58,32 +51,26 @@ static void kbd_flush(void) {
     }
 }
 
-// Проверка нажатия БЕЗ блокировки - возвращает 1 если была нажата клавиша
 static int kbd_check_any_key(void) {
     if (kbd_has_data()) {
         uint8_t sc = inb(0x60);
-        // Только нажатия (не отпускания)
         if (!(sc & 0x80)) {
-            kbd_flush(); // Очищаем остальное
+            kbd_flush();
             return 1;
         }
     }
     return 0;
 }
 
-// Ждём нажатия клавиши (блокирующее) - возвращает scancode
 static uint8_t kbd_wait_key(void) {
     uint8_t sc;
     
-    // Сначала очищаем буфер
     kbd_flush();
     
-    // Ждём нажатия (не отпускания)
     while (1) {
         while (!kbd_has_data());
         sc = inb(0x60);
         if (!(sc & 0x80)) {
-            // Ждём отпускания этой клавиши
             while (1) {
                 if (kbd_has_data()) {
                     uint8_t rel = inb(0x60);
@@ -96,15 +83,14 @@ static uint8_t kbd_wait_key(void) {
     }
 }
 
-// Задержка с проверкой клавиши
 static int delay_or_key(unsigned int ms) {
     for (unsigned int i = 0; i < ms; i++) {
         for (volatile int j = 0; j < 2000; j++);
         if (kbd_check_any_key()) {
-            return 1; // Была нажата клавиша
+            return 1;
         }
     }
-    return 0; // Таймаут
+    return 0;
 }
 
 /* ============== MATRIX ============== */
@@ -149,7 +135,6 @@ void screensaver_matrix(void) {
     kbd_flush();
     
     while (1) {
-        // Обновляем колонки
         for (int x = 0; x < SCR_WIDTH; x++) {
             cols[x].timer++;
             
@@ -188,7 +173,6 @@ void screensaver_matrix(void) {
             }
         }
         
-        // Отрисовка
         for (int y = 0; y < SCR_HEIGHT; y++) {
             for (int x = 0; x < SCR_WIDTH; x++) {
                 uint8_t b = brightness[y][x];
@@ -238,7 +222,6 @@ void screensaver_stars(void) {
         }
     }
     
-    // Твоё лого
     const char* logo[] = {
         "     _    _         ___  ____  ",
         "    / \\  | |       / _ \\/ ___| ",
@@ -265,7 +248,6 @@ void screensaver_stars(void) {
             scr_put(stars[i].x, stars[i].y, stars[i].symbol, stars[i].color);
         }
         
-        // Рисуем лого
         for (int row = 0; row < logo_h; row++) {
             for (int col = 0; logo[row][col]; col++) {
                 if (logo[row][col] != ' ') {
@@ -285,7 +267,6 @@ void screensaver_bounce(void) {
     scr_clear(0x00);
     vga_set_cursor(SCR_WIDTH * SCR_HEIGHT);
     
-    // Твоё лого AL-OS
     const char* logo[] = {
         "     _    _         ___  ____  ",
         "    / \\  | |       / _ \\/ ___| ",
@@ -486,7 +467,6 @@ void screensaver_plasma(void) {
     while (1) {
         for (int y = 0; y < SCR_HEIGHT; y++) {
             for (int x = 0; x < SCR_WIDTH; x++) {
-                // Простая плазма через сумму синусоид (аппроксимация)
                 int v1 = (x + frame) % 20;
                 int v2 = (y + frame / 2) % 15;
                 int v3 = (x + y + frame) % 25;
@@ -551,7 +531,6 @@ void screensaver_run(void) {
         vga_print_color("\n    [Up/Down] Select   [Enter] Start   [ESC] Exit\n", 0x07);
         vga_print_color("\n    Press any key to stop screensaver\n", 0x08);
         
-        // Ждём нажатия клавиши
         uint8_t sc = kbd_wait_key();
         
         switch (sc) {

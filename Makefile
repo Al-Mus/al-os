@@ -10,13 +10,15 @@ ISO = AlSystem.iso
 
 OBJS = boot/kernel_entry.o kernel/kernel.o \
        kernel/drivers/keyboard.o \
-       kernel/fs/fs.o \
        kernel/drivers/vga.o \
+       kernel/drivers/ata.o \
+       kernel/fs/fs.o \
+       kernel/fs/fat.o \
        kernel/utils/string.o \
        kernel/utils/nano.o \
        kernel/utils/panic.o \
        kernel/utils/fm.o \
-       kernel/utils/screensaver.o \
+       kernel/utils/screensaver.o
 
 all: $(TARGET)
 
@@ -52,4 +54,4 @@ clean:
 	rm -f $(OBJS) $(TARGET)
 	rm -rf iso
 
-.PHONY: all iso clean clean-all
+.PHONY: all iso clean clean-all run
