@@ -84,11 +84,9 @@ sudo apt update && sudo apt install -y build-essential gcc-i686-linux-gnu gcc-14
 
 ## Что хочу добавить
 
-1. Основной целью пока является добавить файловую систему. Сейчас в системе она присутствует, но она пока что только в оперативной памяти, в будущем хочу сделать именно что бы оно могло записывать и читать с постоянной памяти
-2. Добавить команды, разнообразные пока особо не знаю что именно, в будущем буду понимать и добавлять
-3. Добавить поддержку интернета и команды ping
-4. Добавить поддержку исполняемых файлов линукс elf 
-5. Пока не придумал, буду дополнять 
+1. Добавить поддержку интернета и команды ping
+2. Добавить поддержку исполняемых файлов линукс elf 
+3. Пока не придумал, буду дополнять 
 
 Порядок идей выставлен по приоритету. 1 - это то что нужно и хочу обязательно, 2 - желательно, остальное с низким приоритетом
 
@@ -171,11 +169,9 @@ Forks, ideas and pull requests - welcome.
 
 ## What I want to add
 
-1. The main goal so far is to add a file system. Now it is present in the system, but so far it is only in RAM, in the future I want to do exactly what it could write and read from permanent memory.
-2. Add various commands, I don't really know what exactly yet, in the future I will understand and add
-3. Add internet support and ping commands
-4. Add support for Linux elf executables
-5. I haven't figured it out yet, but I'll keep adding to it. 
+1. Add internet support and ping commands
+2. Add support for Linux elf executables
+3. I haven't figured it out yet, but I'll keep adding to it. 
 
 The order of ideas is set by priority. 1 is what I need and want absolutely, 2 is desirable, the rest is with a low priority.
 
