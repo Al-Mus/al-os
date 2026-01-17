@@ -10,6 +10,7 @@
 #include "utils/screensaver.h"
 #include "drivers/ata.h"
 #include "fs/fat.h"
+#include "exec/elf.h"
 
 #define MAX_CMD_LEN 128
 
@@ -310,6 +311,7 @@ static void fat_shell(void) {
             vga_print_color("  touch <name>   - Create empty file\n", 0x0F);
             vga_print_color("  rm <name>      - Remove file/directory\n", 0x0F);
             vga_print_color("  write <f> <t>  - Write text to file\n", 0x0F);
+            vga_print_color("  exec <file>    - Execute ELF program\n", 0x0F);
             vga_print_color("  info           - Filesystem info\n", 0x0F);
             vga_print_color("  exit           - Exit FAT shell\n", 0x0F);
         }
@@ -350,6 +352,14 @@ static void fat_shell(void) {
                 vga_print_color("Usage: write <file> <text>\n", 0x0C);
             }
         }
+        /* === NEW: Execute ELF === */
+        else if (strcmp(cmd, "exec") == 0 || strcmp(cmd, "run") == 0 || strcmp(cmd, "./") == 0) {
+            if (args[0]) {
+                elf_exec(args);
+            } else {
+                vga_print_color("Usage: exec <file.elf>\n", 0x0C);
+            }
+        }
         else if (strcmp(cmd, "info") == 0) {
             fat_info();
         }
@@ -357,7 +367,12 @@ static void fat_shell(void) {
             vga_clear();
         }
         else {
-            vga_print_color("Unknown command. Type 'help' for list.\n", 0x0C);
+            /* Try to execute as program if file exists */
+            if (fat_exists(cmd)) {
+                elf_exec(cmd);
+            } else {
+                vga_print_color("Unknown command. Type 'help' for list.\n", 0x0C);
+            }
         }
     }
 }

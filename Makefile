@@ -18,7 +18,8 @@ OBJS = boot/kernel_entry.o kernel/kernel.o \
        kernel/utils/nano.o \
        kernel/utils/panic.o \
        kernel/utils/fm.o \
-       kernel/utils/screensaver.o
+       kernel/utils/screensaver.o \
+	   kernel/exec/elf.o
 
 all: $(TARGET)
 
