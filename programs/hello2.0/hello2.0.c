@@ -43,16 +43,27 @@ int _start(void) {
         return -1;
     }
     
-    sys->print_color("================================\n", 0x0B);
-    sys->print_color("  Hello from ELF program!\n", 0x0A);
-    sys->print_color("================================\n", 0x0B);
-    sys->print("\n");
-    sys->print("Loaded from FAT filesystem.\n");
-    sys->print("Using kernel syscalls.\n");
-    sys->print("\n");
-    sys->print_color("Press any key...", 0x0E);
+    sys->print_color("\n=== Hello from AL-OS! ===\n\n", 0x0A);
+    
+    sys->print("Syscall API version: ");
+    char v = '0' + sys->version;
+    sys->putchar(v);
+    sys->putchar('\n');
+    
+    sys->print("Screen: ");
+    int w = sys->get_screen_width();
+    int h = sys->get_screen_height();
+    sys->putchar('0' + w / 10);
+    sys->putchar('0' + w % 10);
+    sys->putchar('x');
+    sys->putchar('0' + h / 10);
+    sys->putchar('0' + h % 10);
+    sys->putchar('\n');
+    
+    sys->print_color("\nPress any key to exit...\n", 0x0E);
     sys->getchar();
-    sys->print("\n");
+    
+    sys->print_color("Goodbye!\n", 0x0B);
     
     return 0;
 }

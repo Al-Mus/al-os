@@ -8,12 +8,10 @@
 #define HISTORY_ENTRY_LEN 128
 #define INPUT_BUFFER_SIZE 256
 
-// История команд
 char history[HISTORY_SIZE][HISTORY_ENTRY_LEN];
 int history_count = 0;
 int history_nav = 0;
 
-// Буфер текущей вводимой строки
 static char input_buffer[INPUT_BUFFER_SIZE];
 static int input_len = 0;
 static int cursor_pos = 0;
@@ -99,12 +97,16 @@ static const char numpad_on[128] = {
     [0x4E] = '+', [0x4A] = '-', [0x37] = '*', [0x35] = '/', [0x1C] = '\n'
 };
 
+int keyboard_has_key(void) {
+    return (inb(KBD_STATUS) & 1) != 0;
+}
+
 char keyboard_read_char(void) {
     while ((inb(KBD_STATUS) & 1) == 0);
 
     unsigned char sc = inb(KBD_DATA);
 
-    if (sc == 0xE0) {  // Расширенные коды (стрелки, Delete, Home и т.д.)
+    if (sc == 0xE0) {
         while ((inb(KBD_STATUS) & 1) == 0);
         unsigned char ext = inb(KBD_DATA);
 
@@ -115,13 +117,13 @@ char keyboard_read_char(void) {
 
         if (ext == 0x1D) { ctrl_pressed = true; return 0; }
 
-        if (ext == 0x4B) return -1;   // ← Left
-        if (ext == 0x4D) return -3;   // → Right
-        if (ext == 0x48) return -2;   // ↑ Up
-        if (ext == 0x50) return -4;   // ↓ Down
-        if (ext == 0x53) return -5;   // Delete
-        if (ext == 0x47) return -7;   // Home
-        if (ext == 0x4F) return -8;   // End
+        if (ext == 0x4B) return -1;
+        if (ext == 0x4D) return -3;
+        if (ext == 0x48) return -2;
+        if (ext == 0x50) return -4;
+        if (ext == 0x53) return -5;
+        if (ext == 0x47) return -7;
+        if (ext == 0x4F) return -8;
 
         return 0;
     }
@@ -136,7 +138,7 @@ char keyboard_read_char(void) {
     if (sc == 0x2A || sc == 0x36) { shift_pressed = true; return 0; }
     if (sc == 0x1D) { ctrl_pressed = true; return 0; }
 
-    if (sc == 0x45) {  // Num Lock
+    if (sc == 0x45) {
         numlock_on = !numlock_on;
         return 0;
     }
@@ -223,14 +225,14 @@ void keyboard_read_line(char* buffer, int max_len) {
             return;
         }
 
-        if (c == '\x03') {  // Ctrl+C
+        if (c == '\x03') {
             vga_print_color("^C\n", 0x0C);
             sigint_received = true;
             buffer[0] = '\0';
             return;
         }
 
-        if (c == '\b') {  // Backspace
+        if (c == '\b') {
             if (cursor_pos > 0) {
                 cursor_pos--;
                 for (int i = cursor_pos; i < input_len - 1; i++) {
@@ -242,7 +244,7 @@ void keyboard_read_line(char* buffer, int max_len) {
             continue;
         }
 
-        if (c == -5) {  // Delete
+        if (c == -5) {
             if (cursor_pos < input_len) {
                 for (int i = cursor_pos; i < input_len - 1; i++) {
                     input_buffer[i] = input_buffer[i + 1];
@@ -253,24 +255,23 @@ void keyboard_read_line(char* buffer, int max_len) {
             continue;
         }
 
-        // Стрелки + Home/End
         if (c < 0) {
             switch (c) {
-                case -1:  // ← Left
+                case -1:
                     if (cursor_pos > 0) {
                         cursor_pos--;
                         vga_set_cursor(input_start + cursor_pos);
                     }
                     break;
 
-                case -3:  // → Right
+                case -3:
                     if (cursor_pos < input_len) {
                         cursor_pos++;
                         vga_set_cursor(input_start + cursor_pos);
                     }
                     break;
 
-                case -2:  // Up
+                case -2:
                     {
                         const char* h = keyboard_history_prev();
                         if (h) {
@@ -283,7 +284,7 @@ void keyboard_read_line(char* buffer, int max_len) {
                     }
                     break;
 
-                case -4:  // Down
+                case -4:
                     {
                         const char* h = keyboard_history_next();
                         if (h) {
@@ -298,12 +299,12 @@ void keyboard_read_line(char* buffer, int max_len) {
                     }
                     break;
 
-                case -7:  // Home
+                case -7:
                     cursor_pos = 0;
                     vga_set_cursor(input_start + cursor_pos);
                     break;
 
-                case -8:  // End
+                case -8:
                     cursor_pos = input_len;
                     vga_set_cursor(input_start + cursor_pos);
                     break;

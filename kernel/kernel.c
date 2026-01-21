@@ -224,7 +224,7 @@ static void cmd_help(const char* arg) {
 
 static void cmd_sysinfo(void) {
     vga_print_color("=== AL-OS ===\n", 0x0D);
-    vga_print_color("Arch: i686\nBuild: v0.4.1 - support elf-files!\n", 0x0F);
+    vga_print_color("Arch: i686\nBuild: v0.4.2 - bugfixes & improved API\n", 0x0F);
 }
 
 static int bcd2bin(int v) { return (v & 0x0F) + ((v >> 4) * 10); }
@@ -303,17 +303,18 @@ static void fat_shell(void) {
         }
         else if (strcmp(cmd, "help") == 0) {
             vga_print_color("FAT Shell Commands:\n", 0x0E);
-            vga_print_color("  ls [path]      - List directory\n", 0x0F);
-            vga_print_color("  cd <path>      - Change directory\n", 0x0F);
-            vga_print_color("  pwd            - Print working directory\n", 0x0F);
-            vga_print_color("  cat <file>     - Display file contents\n", 0x0F);
-            vga_print_color("  mkdir <name>   - Create directory\n", 0x0F);
-            vga_print_color("  touch <name>   - Create empty file\n", 0x0F);
-            vga_print_color("  rm <name>      - Remove file/directory\n", 0x0F);
-            vga_print_color("  write <f> <t>  - Write text to file\n", 0x0F);
-            vga_print_color("  exec <file>    - Execute ELF program\n", 0x0F);
-            vga_print_color("  info           - Filesystem info\n", 0x0F);
-            vga_print_color("  exit           - Exit FAT shell\n", 0x0F);
+            vga_print_color("  ls [path]       - List directory\n", 0x0F);
+            vga_print_color("  cd [path]       - Change directory\n", 0x0F);
+            vga_print_color("  pwd             - Print working directory\n", 0x0F);
+            vga_print_color("  cat <file>      - Display file contents\n", 0x0F);
+            vga_print_color("  mkdir <name>    - Create directory\n", 0x0F);
+            vga_print_color("  touch <name>    - Create empty file\n", 0x0F);
+            vga_print_color("  rm <name>       - Remove file/directory\n", 0x0F);
+            vga_print_color("  write <f> <txt> - Write text to file\n", 0x0F);
+            vga_print_color("  exec <file>     - Execute ELF program\n", 0x0F);
+            vga_print_color("  info            - Filesystem info\n", 0x0F);
+            vga_print_color("  clear           - Clear screen\n", 0x0F);
+            vga_print_color("  exit            - Exit FAT shell\n", 0x0F);
         }
         else if (strcmp(cmd, "ls") == 0) {
             fat_ls(args[0] ? args : NULL);
@@ -346,13 +347,13 @@ static void fat_shell(void) {
             if (text) {
                 *text = '\0';
                 text++;
-                fat_write(args, text, strlen(text));
-                vga_print_color("Written\n", 0x0A);
+                if (fat_write(args, text, strlen(text)) == 0) {
+                    vga_print_color("Written\n", 0x0A);
+                }
             } else {
                 vga_print_color("Usage: write <file> <text>\n", 0x0C);
             }
         }
-        /* === NEW: Execute ELF === */
         else if (strcmp(cmd, "exec") == 0 || strcmp(cmd, "run") == 0 || strcmp(cmd, "./") == 0) {
             if (args[0]) {
                 elf_exec(args);
@@ -367,7 +368,6 @@ static void fat_shell(void) {
             vga_clear();
         }
         else {
-            /* Try to execute as program if file exists */
             if (fat_exists(cmd)) {
                 elf_exec(cmd);
             } else {
@@ -643,6 +643,28 @@ static void rtrim_spaces(char* s) {
     }
 }
 
+static void do_shutdown(void) {
+    vga_print_color("Shutting down...\n", 0x0C);
+    for (volatile int i = 0; i < 50000000; i++);
+    
+    asm volatile("cli");
+    
+    outw(0x604, 0x2000);
+    
+    outw(0xB004, 0x2000);
+    
+    outw(0x4004, 0x3400);
+    
+    outb(0x64, 0xFE);
+    
+    outb(0x92, 0x01);
+    
+    vga_print_color("Shutdown failed. Please power off manually.\n", 0x0C);
+    while (1) {
+        asm volatile("hlt");
+    }
+}
+
 static int execute_command(char* cmd) {
     while (*cmd == ' ') cmd++;
     if (!*cmd) return 0; 
@@ -724,22 +746,16 @@ static int execute_command(char* cmd) {
         vga_print_color("Endianness: little\n", 0x0F);
     }
     else if (strcmp(cmd, "reboot") == 0) {
-        vga_print_color("Rebooting...", 0x0C);
-        for (volatile int i = 0; i < 100000000; i++);
+        vga_print_color("Rebooting...\n", 0x0C);
+        for (volatile int i = 0; i < 50000000; i++);
         asm volatile("cli");
-        asm volatile("mov $0xFE, %%al; out %%al, $0x64" ::: "eax");
-        asm volatile("mov $0x02, %%al; out %%al, $0x92" ::: "eax");
-        asm volatile("mov $0x2000, %%ax; mov $0xB004, %%dx; out %%ax, %%dx" ::: "eax", "edx");
+        outb(0x64, 0xFE);
+        outb(0x92, 0x01);
+        outw(0xCF9, 0x06);
         while (1) asm("hlt");
     }
     else if (strcmp(cmd, "shutdown") == 0 || strcmp(cmd, "poweroff") == 0) {
-        vga_print_color("SHUTTING DOWN...", 0x0C);
-        for (volatile int i = 0; i < 100000000; i++);
-        asm volatile("cli");
-        asm volatile("mov $0x2000, %%ax; mov $0x604, %%dx; out %%ax, %%dx" ::: "eax", "edx");
-        asm volatile("mov $0x2000, %%ax; mov $0xB004, %%dx; out %%ax, %%dx" ::: "eax", "edx");
-        asm volatile("mov $0xFE, %%al; out %%al, $0x64" ::: "eax");
-        while (1) asm("hlt");
+        do_shutdown();
     }
     else if (strcmp(cmd, "whoami") == 0)    cmd_whoami();
     else if (strcmp(cmd, "date") == 0)      cmd_date();
@@ -777,7 +793,7 @@ static int execute_command(char* cmd) {
                 vga_print_color(": ", 0x0F);
                 vga_print_color(dev->model, 0x0A);
                 vga_print_color(" (", 0x08);
-                itoa(dev->size / 2048, buf, 10);  // MB
+                itoa(dev->size / 2048, buf, 10);
                 vga_print(buf);
                 vga_print_color(" MB)\n", 0x08);
             }
@@ -838,11 +854,13 @@ static int execute_command(char* cmd) {
     else if (strcmp(cmd, "fat") == 0) {
         fat_shell();
     }
-    else vga_print_color("Command not found\n", 0x0C);
+    else {
+        vga_print_color("Command not found\n", 0x0C);
         return 127;
+    }
+    return 0;
 }
 
-/* --- Kernel main --- */
 void kernel_main(void)
 {
     vga_clear();

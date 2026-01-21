@@ -11,6 +11,7 @@ void keyboard_init(void);
 void keyboard_read_line(char* buffer, int max_len);
 int keyboard_sigint_check(void);
 void keyboard_poll(void);
+int keyboard_has_key(void);
 
 void keyboard_history_add(const char* cmd);
 const char* keyboard_history_prev(void);

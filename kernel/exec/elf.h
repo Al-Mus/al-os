@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-/* ELF constants */
 #define EI_NIDENT       16
 #define EI_MAG0         0
 #define EI_MAG1         1
@@ -18,13 +17,13 @@
 #define EM_386          3
 #define PT_LOAD         1
 
-/* Syscall table - at fixed address 0x100000 */
 #define SYSCALL_TABLE_ADDR  0x100000
 #define SYSCALL_MAGIC_VALUE 0xA105C411
 
 typedef struct {
     uint32_t    magic;
     uint32_t    version;
+    
     void        (*print)(const char* str);
     void        (*print_color)(const char* str, uint8_t color);
     void        (*putchar)(char c);
@@ -33,9 +32,27 @@ typedef struct {
     void        (*read_line)(char* buf, int max);
     void        (*sleep)(uint32_t ms);
     uint32_t    (*get_ticks)(void);
+    
+    int         (*file_exists)(const char* path);
+    int         (*file_read)(const char* path, void* buf, uint32_t max_size);
+    int         (*file_write)(const char* path, const void* data, uint32_t size);
+    int         (*file_remove)(const char* path);
+    int         (*file_mkdir)(const char* path);
+    int         (*is_dir)(const char* path);
+    int         (*list_dir)(const char* path, void (*callback)(const char* name, uint32_t size, uint8_t is_dir));
+    
+    void        (*set_cursor)(int x, int y);
+    void        (*get_cursor)(int* x, int* y);
+    int         (*get_screen_width)(void);
+    int         (*get_screen_height)(void);
+    
+    int         (*key_pressed)(void);
+    int         (*get_key_nonblock)(void);
+    
+    void*       (*malloc)(uint32_t size);
+    void        (*free)(void* ptr);
 } syscall_table_t;
 
-/* ELF structures */
 typedef struct {
     uint8_t     e_ident[EI_NIDENT];
     uint16_t    e_type;

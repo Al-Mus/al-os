@@ -4,8 +4,6 @@
 #include "../utils/string.h"
 #include "../utils/ports.h"
 
-/* ==================== BPB Structures ==================== */
-
 typedef struct __attribute__((packed)) {
     uint8_t     jmp[3];
     char        oem[8];
@@ -77,12 +75,8 @@ typedef struct __attribute__((packed)) {
     uint16_t    name3[2];
 } fat_lfn_entry_t;
 
-/* ==================== Constants ==================== */
-
 #define MAX_SECTOR_SIZE     4096
 #define DIR_ENTRY_SIZE      32
-
-/* ==================== Global State ==================== */
 
 static struct {
     uint8_t     mounted;
@@ -91,8 +85,8 @@ static struct {
     
     uint16_t    bytes_per_sector;
     uint8_t     sectors_per_cluster;
-    uint16_t    entries_per_sector;     /* bytes_per_sector / 32 */
-    uint8_t     ata_sectors_per_fs_sector;  /* bytes_per_sector / 512 */
+    uint16_t    entries_per_sector;
+    uint8_t     ata_sectors_per_fs_sector;
     
     uint32_t    fat_start_sector;
     uint32_t    fat_size_sectors;
@@ -108,7 +102,6 @@ static struct {
     
     char        volume_label[12];
     
-    /* Dynamic size buffers - max 4096 bytes */
     uint8_t     sector_buf[MAX_SECTOR_SIZE];
     
     uint32_t    fat_cache_sector;
@@ -117,15 +110,11 @@ static struct {
     
 } fat_state;
 
-/* ==================== Low-level I/O ==================== */
-
-/* Read one logical FAT sector (may be multiple ATA sectors) */
 static int read_sector(uint32_t sector, void* buffer) {
     if (fat_state.bytes_per_sector == 512) {
         return ata_read_sectors(fat_state.drive, sector, 1, buffer);
     }
     
-    /* For larger sectors, read multiple ATA sectors */
     uint32_t ata_sector = sector * fat_state.ata_sectors_per_fs_sector;
     uint8_t* buf = (uint8_t*)buffer;
     
@@ -137,7 +126,6 @@ static int read_sector(uint32_t sector, void* buffer) {
     return 0;
 }
 
-/* Write one logical FAT sector */
 static int write_sector(uint32_t sector, const void* buffer) {
     if (fat_state.bytes_per_sector == 512) {
         return ata_write_sectors(fat_state.drive, sector, 1, buffer);
@@ -154,8 +142,6 @@ static int write_sector(uint32_t sector, const void* buffer) {
     return 0;
 }
 
-/* ==================== Utility Functions ==================== */
-
 static void to_upper(char* str) {
     while (*str) {
         if (*str >= 'a' && *str <= 'z') *str -= 32;
@@ -167,8 +153,6 @@ static uint32_t cluster_to_sector(uint32_t cluster) {
     return fat_state.data_start_sector + 
            (cluster - 2) * fat_state.sectors_per_cluster;
 }
-
-/* ==================== FAT Table Operations ==================== */
 
 static int fat_cache_load(uint32_t sector) {
     if (fat_state.fat_cache_sector == sector) return 0;
@@ -342,8 +326,6 @@ static uint32_t fat_alloc_cluster(void) {
     return 0;
 }
 
-/* ==================== LFN Support ==================== */
-
 static uint8_t lfn_checksum(const char* short_name) {
     uint8_t sum = 0;
     for (int i = 0; i < 11; i++) {
@@ -371,8 +353,6 @@ static int needs_lfn(const char* name) {
     
     return 0;
 }
-
-/* ==================== Filename Conversion ==================== */
 
 static void fat_name_to_str(const fat_dir_entry_t* entry, char* out) {
     int i, j = 0;
@@ -421,8 +401,6 @@ static void str_to_fat_name(const char* name, char* out) {
     }
 }
 
-/* ==================== Directory Operations ==================== */
-
 static int read_dir_entries(uint32_t start_cluster, 
                            int (*callback)(fat_dir_entry_t*, char*, void*),
                            void* ctx) {
@@ -433,7 +411,6 @@ static int read_dir_entries(uint32_t start_cluster,
     
     lfn_buf[0] = '\0';
     
-    /* Handle FAT12/16 root directory */
     if (cluster == 0 && fat_state.type != FAT_TYPE_32) {
         for (uint32_t s = 0; s < fat_state.root_dir_sectors; s++) {
             if (read_sector(fat_state.root_dir_sector + s, fat_state.sector_buf) < 0)
@@ -480,7 +457,6 @@ static int read_dir_entries(uint32_t start_cluster,
         return 0;
     }
     
-    /* Read cluster chain */
     while (cluster < 0x0FFFFFF8) {
         uint32_t sector = cluster_to_sector(cluster);
         
@@ -531,8 +507,6 @@ static int read_dir_entries(uint32_t start_cluster,
     
     return 0;
 }
-
-/* ==================== Path Resolution ==================== */
 
 typedef struct {
     const char* target;
@@ -630,8 +604,6 @@ static int fat_resolve_path(const char* path, uint32_t* out_cluster, fat_dir_ent
     return 0;
 }
 
-/* ==================== Mount ==================== */
-
 int fat_mount(uint8_t drive) {
     if (fat_state.mounted) {
         fat_unmount();
@@ -644,7 +616,6 @@ int fat_mount(uint8_t drive) {
         return -1;
     }
     
-    /* Read boot sector (always 512 bytes via ATA) */
     uint8_t boot_sector[512];
     if (ata_read_sectors(drive, 0, 1, boot_sector) < 0) {
         vga_print_color("Failed to read boot sector\n", 0x0C);
@@ -653,7 +624,6 @@ int fat_mount(uint8_t drive) {
     
     bpb_t* bpb = (bpb_t*)boot_sector;
     
-    /* Validate sector size */
     uint16_t bps = bpb->bytes_per_sector;
     if (bps != 512 && bps != 1024 && bps != 2048 && bps != 4096) {
         vga_print_color("Unsupported sector size: ", 0x0C);
@@ -669,14 +639,12 @@ int fat_mount(uint8_t drive) {
         return -1;
     }
     
-    /* Store basic info */
     fat_state.drive = drive;
     fat_state.bytes_per_sector = bps;
     fat_state.sectors_per_cluster = bpb->sectors_per_cluster;
     fat_state.entries_per_sector = bps / DIR_ENTRY_SIZE;
     fat_state.ata_sectors_per_fs_sector = bps / 512;
     
-    /* If sector size > 512, re-read boot sector completely */
     if (bps > 512) {
         memcpy(fat_state.sector_buf, boot_sector, 512);
         for (int i = 1; i < fat_state.ata_sectors_per_fs_sector; i++) {
@@ -688,7 +656,6 @@ int fat_mount(uint8_t drive) {
         bpb = (bpb_t*)fat_state.sector_buf;
     }
     
-    /* Calculate FAT location */
     fat_state.fat_start_sector = bpb->reserved_sectors;
     
     uint32_t fat_size;
@@ -700,22 +667,17 @@ int fat_mount(uint8_t drive) {
     }
     fat_state.fat_size_sectors = fat_size;
     
-    /* Root directory location (FAT12/16) */
     fat_state.root_dir_sector = fat_state.fat_start_sector + (bpb->num_fats * fat_size);
     fat_state.root_dir_sectors = ((bpb->root_entry_count * 32) + (bps - 1)) / bps;
     
-    /* Data area start */
     fat_state.data_start_sector = fat_state.root_dir_sector + fat_state.root_dir_sectors;
     
-    /* Total sectors */
     uint32_t total_sectors = (bpb->total_sectors_16 != 0) ? 
                              bpb->total_sectors_16 : bpb->total_sectors_32;
     
-    /* Total data clusters */
     uint32_t data_sectors = total_sectors - fat_state.data_start_sector;
     fat_state.total_clusters = data_sectors / bpb->sectors_per_cluster;
     
-    /* Determine FAT type */
     if (fat_state.total_clusters < 4085) {
         fat_state.type = FAT_TYPE_12;
     } else if (fat_state.total_clusters < 65525) {
@@ -728,7 +690,6 @@ int fat_mount(uint8_t drive) {
         fat_state.data_start_sector = fat_state.root_dir_sector;
     }
     
-    /* Get volume label */
     if (fat_state.type == FAT_TYPE_32) {
         fat32_ebpb_t* fat32 = (fat32_ebpb_t*)(bps > 512 ? fat_state.sector_buf : boot_sector);
         memcpy(fat_state.volume_label, fat32->volume_label, 11);
@@ -742,12 +703,10 @@ int fat_mount(uint8_t drive) {
         fat_state.volume_label[i] = '\0';
     }
     
-    /* Initialize current directory */
     fat_state.current_cluster = (fat_state.type == FAT_TYPE_32) ? 
                                 fat_state.root_cluster : 0;
     strcpy(fat_state.current_path, "/");
     
-    /* Initialize FAT cache */
     fat_state.fat_cache_sector = 0xFFFFFFFF;
     fat_state.fat_cache_dirty = 0;
     
@@ -787,8 +746,6 @@ const char* fat_get_current_path(void) {
     if (!fat_state.mounted) return "";
     return fat_state.current_path;
 }
-
-/* ==================== Navigation ==================== */
 
 int fat_cd(const char* path) {
     if (!fat_state.mounted) {
@@ -896,8 +853,6 @@ void fat_ls(const char* path) {
     read_dir_entries(cluster, ls_callback, NULL);
 }
 
-/* ==================== File Operations ==================== */
-
 int fat_cat(const char* path) {
     if (!fat_state.mounted) {
         vga_print_color("No filesystem mounted\n", 0x0C);
@@ -982,7 +937,6 @@ int fat_read(const char* path, void* buffer, uint32_t max_size) {
     return (int)read_total;
 }
 
-/* Find empty slots in directory */
 static int find_empty_entries(uint32_t dir_cluster, int count, uint32_t* out_sector, int* out_index) {
     int consecutive = 0;
     uint32_t first_sector = 0;
@@ -1111,6 +1065,22 @@ static int create_lfn_entries(uint32_t dir_cluster, const char* name,
     return 0;
 }
 
+static int is_valid_name(const char* name) {
+    if (!name || !name[0]) return 0;
+    if (strcmp(name, "/") == 0) return 0;
+    if (strcmp(name, ".") == 0) return 0;
+    if (strcmp(name, "..") == 0) return 0;
+    
+    for (int i = 0; name[i]; i++) {
+        char c = name[i];
+        if (c == '/' || c == '\\' || c == ':' || c == '*' || 
+            c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int fat_touch(const char* path) {
     if (!fat_state.mounted) {
         vga_print_color("No filesystem mounted\n", 0x0C);
@@ -1136,6 +1106,11 @@ int fat_touch(const char* path) {
         strcpy(parent_path, ".");
     }
     
+    if (!is_valid_name(filename)) {
+        vga_print_color("Invalid filename\n", 0x0C);
+        return -1;
+    }
+    
     uint32_t parent_cluster;
     fat_dir_entry_t parent_entry;
     
@@ -1152,6 +1127,10 @@ int fat_touch(const char* path) {
     
     fat_dir_entry_t existing;
     if (fat_find_in_dir(parent_cluster, filename, &existing) == 0) {
+        if (existing.attr & FAT_ATTR_DIRECTORY) {
+            vga_print_color("A directory with this name exists\n", 0x0C);
+            return -1;
+        }
         return 0;
     }
     
@@ -1163,12 +1142,12 @@ int fat_touch(const char* path) {
     
     if (needs_lfn(filename)) {
         if (create_lfn_entries(parent_cluster, filename, short_name, &entry_sector, &entry_index) < 0) {
-            vga_print_color("Failed to create LFN\n", 0x0C);
+            vga_print_color("Directory full or disk full\n", 0x0C);
             return -1;
         }
     } else {
         if (find_empty_entries(parent_cluster, 1, &entry_sector, &entry_index) < 0) {
-            vga_print_color("Directory full\n", 0x0C);
+            vga_print_color("Directory full or disk full\n", 0x0C);
             return -1;
         }
     }
@@ -1191,15 +1170,29 @@ int fat_touch(const char* path) {
 }
 
 int fat_write(const char* path, const void* data, uint32_t size) {
-    if (!fat_state.mounted) return -1;
-    
-    fat_touch(path);
+    if (!fat_state.mounted) {
+        vga_print_color("No filesystem mounted\n", 0x0C);
+        return -1;
+    }
     
     fat_dir_entry_t entry;
     uint32_t dummy;
+    int file_exists = (fat_resolve_path(path, &dummy, &entry) == 0);
     
-    if (fat_resolve_path(path, &dummy, &entry) < 0) return -1;
-    if (entry.attr & FAT_ATTR_DIRECTORY) return -1;
+    if (file_exists && (entry.attr & FAT_ATTR_DIRECTORY)) {
+        vga_print_color("Cannot write to directory\n", 0x0C);
+        return -1;
+    }
+    
+    if (!file_exists) {
+        if (fat_touch(path) < 0) {
+            return -1;
+        }
+        if (fat_resolve_path(path, &dummy, &entry) < 0) {
+            vga_print_color("Failed to create file\n", 0x0C);
+            return -1;
+        }
+    }
     
     uint32_t old_cluster = get_entry_cluster(&entry);
     while (old_cluster >= 2 && old_cluster < 0x0FFFFFF8) {
@@ -1213,6 +1206,75 @@ int fat_write(const char* path, const void* data, uint32_t size) {
         fat_state.fat_cache_dirty = 0;
     }
     
+    if (size == 0) {
+        char parent_path[FAT_MAX_PATH];
+        char filename[FAT_MAX_NAME];
+        
+        strncpy(parent_path, path, FAT_MAX_PATH - 1);
+        char* last_slash = strrchr(parent_path, '/');
+        if (last_slash) {
+            strcpy(filename, last_slash + 1);
+            if (last_slash == parent_path) parent_path[1] = '\0';
+            else *last_slash = '\0';
+        } else {
+            strcpy(filename, path);
+            strcpy(parent_path, ".");
+        }
+        
+        uint32_t parent_cluster;
+        if (strcmp(parent_path, ".") == 0) {
+            parent_cluster = fat_state.current_cluster;
+        } else if (strcmp(parent_path, "/") == 0) {
+            parent_cluster = (fat_state.type == FAT_TYPE_32) ? fat_state.root_cluster : 0;
+        } else {
+            fat_dir_entry_t pentry;
+            fat_resolve_path(parent_path, &parent_cluster, &pentry);
+        }
+        
+        char fat_name[11];
+        str_to_fat_name(filename, fat_name);
+        uint16_t entries_per_sec = fat_state.entries_per_sector;
+        
+        if (parent_cluster == 0 && fat_state.type != FAT_TYPE_32) {
+            for (uint32_t s = 0; s < fat_state.root_dir_sectors; s++) {
+                read_sector(fat_state.root_dir_sector + s, fat_state.sector_buf);
+                fat_dir_entry_t* entries = (fat_dir_entry_t*)fat_state.sector_buf;
+                
+                for (uint16_t i = 0; i < entries_per_sec; i++) {
+                    if (memcmp(entries[i].name, fat_name, 11) == 0) {
+                        entries[i].cluster_lo = 0;
+                        entries[i].cluster_hi = 0;
+                        entries[i].file_size = 0;
+                        write_sector(fat_state.root_dir_sector + s, fat_state.sector_buf);
+                        return 0;
+                    }
+                }
+            }
+        } else {
+            uint32_t cluster = parent_cluster;
+            while (cluster < 0x0FFFFFF8) {
+                uint32_t sector = cluster_to_sector(cluster);
+                
+                for (int s = 0; s < fat_state.sectors_per_cluster; s++) {
+                    read_sector(sector + s, fat_state.sector_buf);
+                    fat_dir_entry_t* entries = (fat_dir_entry_t*)fat_state.sector_buf;
+                    
+                    for (uint16_t i = 0; i < entries_per_sec; i++) {
+                        if (memcmp(entries[i].name, fat_name, 11) == 0) {
+                            entries[i].cluster_lo = 0;
+                            entries[i].cluster_hi = 0;
+                            entries[i].file_size = 0;
+                            write_sector(sector + s, fat_state.sector_buf);
+                            return 0;
+                        }
+                    }
+                }
+                cluster = fat_get_entry(cluster);
+            }
+        }
+        return 0;
+    }
+    
     uint32_t first_cluster = 0;
     uint32_t prev_cluster = 0;
     uint32_t bytes_written = 0;
@@ -1222,6 +1284,21 @@ int fat_write(const char* path, const void* data, uint32_t size) {
     while (bytes_written < size) {
         uint32_t cluster = fat_alloc_cluster();
         if (cluster == 0) {
+            if (first_cluster != 0) {
+                uint32_t c = first_cluster;
+                while (c >= 2 && c < 0x0FFFFFF8) {
+                    uint32_t next = fat_get_entry(c);
+                    fat_set_entry(c, 0);
+                    c = next;
+                }
+                if (fat_state.fat_cache_dirty) {
+                    write_sector(fat_state.fat_cache_sector, fat_state.fat_cache);
+                    fat_state.fat_cache_dirty = 0;
+                }
+            }
+            if (!file_exists) {
+                fat_rm(path);
+            }
             vga_print_color("Disk full\n", 0x0C);
             return -1;
         }
@@ -1250,7 +1327,6 @@ int fat_write(const char* path, const void* data, uint32_t size) {
         fat_state.fat_cache_dirty = 0;
     }
     
-    /* Update directory entry */
     char parent_path[FAT_MAX_PATH];
     char filename[FAT_MAX_NAME];
     
@@ -1342,6 +1418,11 @@ int fat_mkdir(const char* path) {
         strcpy(parent_path, ".");
     }
     
+    if (!is_valid_name(dirname)) {
+        vga_print_color("Invalid directory name\n", 0x0C);
+        return -1;
+    }
+    
     uint32_t parent_cluster;
     if (strcmp(parent_path, ".") == 0) {
         parent_cluster = fat_state.current_cluster;
@@ -1398,12 +1479,22 @@ int fat_mkdir(const char* path) {
     
     if (needs_lfn(dirname)) {
         if (create_lfn_entries(parent_cluster, dirname, short_name, &entry_sector, &entry_index) < 0) {
-            vga_print_color("Failed to create directory\n", 0x0C);
+            fat_set_entry(new_cluster, 0);
+            if (fat_state.fat_cache_dirty) {
+                write_sector(fat_state.fat_cache_sector, fat_state.fat_cache);
+                fat_state.fat_cache_dirty = 0;
+            }
+            vga_print_color("Directory full or disk full\n", 0x0C);
             return -1;
         }
     } else {
         if (find_empty_entries(parent_cluster, 1, &entry_sector, &entry_index) < 0) {
-            vga_print_color("Parent directory full\n", 0x0C);
+            fat_set_entry(new_cluster, 0);
+            if (fat_state.fat_cache_dirty) {
+                write_sector(fat_state.fat_cache_sector, fat_state.fat_cache);
+                fat_state.fat_cache_dirty = 0;
+            }
+            vga_print_color("Directory full or disk full\n", 0x0C);
             return -1;
         }
     }
@@ -1513,8 +1604,6 @@ int fat_rm(const char* path) {
     
     return 0;
 }
-
-/* ==================== Utility ==================== */
 
 void fat_info(void) {
     if (!fat_state.mounted) {

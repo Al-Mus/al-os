@@ -1,8 +1,3 @@
-#include <stdint.h>
-
-#define SYSCALL_TABLE ((syscall_table_t*)0x100000)
-#define SYSCALL_MAGIC 0xA105C411
-
 typedef struct {
     uint32_t    magic;
     uint32_t    version;
@@ -35,24 +30,3 @@ typedef struct {
     void*       (*malloc)(uint32_t size);
     void        (*free)(void* ptr);
 } syscall_table_t;
-
-int _start(void) {
-    syscall_table_t* sys = SYSCALL_TABLE;
-    
-    if (sys->magic != SYSCALL_MAGIC) {
-        return -1;
-    }
-    
-    sys->print_color("================================\n", 0x0B);
-    sys->print_color("  Hello from ELF program!\n", 0x0A);
-    sys->print_color("================================\n", 0x0B);
-    sys->print("\n");
-    sys->print("Loaded from FAT filesystem.\n");
-    sys->print("Using kernel syscalls.\n");
-    sys->print("\n");
-    sys->print_color("Press any key...", 0x0E);
-    sys->getchar();
-    sys->print("\n");
-    
-    return 0;
-}
