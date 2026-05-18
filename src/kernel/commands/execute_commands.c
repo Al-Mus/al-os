@@ -3,6 +3,7 @@
 #include "../../apps/fm/fm.h"
 #include "../../apps/screensaver/screensaver.h"
 #include "../sys/panic.h"
+#include "../drivers/net/rtl8139.h"
 #include "../drivers/vga/vga.h"
 #include "../drivers/pci/pci.h"
 #include "../fs/memory_fs/fs.h"
@@ -26,7 +27,7 @@ typedef struct {
 } command_t;
 
 /* ========================================================================== */
-/* Статическая обёртка для сложных или инлайн команд               */
+/* Статическая обёртка для сложных или инлайн команд                         */
 /* ========================================================================== */
 
 static int execute_cmd_help(char* args)      { cmd_help(args); return 0; }
@@ -80,8 +81,6 @@ static int execute_cmd_touch(char* args) { if (args[0]) fs_touch(args); return 0
 static int execute_cmd_cp(char* args)    { cmd_cp(args); return 0; }
 static int execute_cmd_mv(char* args)    { cmd_mv(args); return 0; }
 static int execute_cmd_tree(char* args)  { (void)args; cmd_tree(NULL, 0); return 0; }
-
-// Добавили пропущенный cat!
 static int execute_cmd_cat(char* args)   { if (args[0]) fs_cat(args); return 0; }
 
 static int execute_cmd_mkdir(char* args) {
@@ -91,11 +90,18 @@ static int execute_cmd_mkdir(char* args) {
 }
 
 static int execute_cmd_write(char* args) {
+    if (!args[0]) {
+        vga_print_color("Usage: write <file> <text>\n", LIGHT_RED);
+        return 1;
+    }
     char* text = strchr(args, ' ');
     if (text) {
         *text = 0;
         text++;
+        while (*text == ' ') text++; // Пропускаем лишние пробелы перед текстом
         fs_write(args, text);
+    } else {
+        vga_print_color("Usage: write <file> <text>\n", LIGHT_RED);
     }
     return 0;
 }
@@ -161,6 +167,11 @@ static int execute_cmd_fattouch(char* args) {
 }
 
 // Интернет
+static int execute_cmd_ping(char* args) {
+    extern void ping_cmd(char* args); // Прототип, если его нет в all_commands.h
+    ping_cmd(args);
+    return 0;
+}
 
 static int execute_cmd_pci(char* args) {
     (void)args;
@@ -168,12 +179,24 @@ static int execute_cmd_pci(char* args) {
     return 0;
 }
 
+static int execute_cmd_netstat(char* args) {
+    (void)args;
+    vga_print_color("Checking network buffer...\n", LIGHT_CYAN);
+    rtl8139_receive();
+    return 0;
+}
+
+static int execute_cmd_net_test(char* args) {
+    (void)args;
+    net_test();
+    return 0;
+}
+
 /* ========================================================================== */
-/*                              Таблица команд                                */
+/* Таблица команд                              */
 /* ========================================================================== */
 
 static const command_t commands[] = {
-    // Системные команды шелла
     {"help",        execute_cmd_help},
     {"clear",       execute_cmd_clear},
     {"echo",        execute_cmd_echo},
@@ -233,11 +256,13 @@ static const command_t commands[] = {
     {"fat",         execute_cmd_fat},
 
     // Интернет
-    {"pci", execute_cmd_pci}
+    {"pci",         execute_cmd_pci},
+    {"netstat",     execute_cmd_netstat},
+    {"net_test",    execute_cmd_net_test},
+    {"ping",        execute_cmd_ping},
 };
 
 #define COMMANDS_COUNT (sizeof(commands) / sizeof(commands[0]))
-
 
 int execute_command(char* cmd) {
     while (*cmd == ' ') cmd++;
