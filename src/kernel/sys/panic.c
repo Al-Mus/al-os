@@ -1,11 +1,12 @@
 #include <stdint.h>
 #include "../drivers/vga/vga.h"
+#include "../arch/i686/timer/timer.h"
+#include "../utils/ports.h"
 
-
-#define BLUE_BG_WHITE 0x1F
-#define BLUE_BG_RED 0x1C
+#define BLUE_BG_WHITE  0x1F
+#define BLUE_BG_RED    0x1C
 #define BLUE_BG_YELLOW 0x1E
-
+#define BLUE_BG_GRAY   0x17
 
 __attribute__((noreturn))
 void panic(const char *module, const char *reason, const char *function) {
@@ -32,13 +33,22 @@ void panic(const char *module, const char *reason, const char *function) {
         vga_print_centered(function, 16, BLUE_BG_YELLOW);
     }
 
+    vga_print_centered("(Press Enter to restart)", 24, BLUE_BG_GRAY);
+
+    outb(0x21, inb(0x21) | 0x02);
+
+    asm volatile("sti");
+
+    int forced_reboot = 0;
     int seconds = 10;
     while (seconds >= 0) {
         char buf[32] = "Reboot in ";
         int i = 10;
         int t = seconds;
-        if (t == 0) {
-            buf[i++] = '0';
+
+        if (t < 10) {
+            buf[i++] = ' ';
+            buf[i++] = '0' + t;
         } else {
             char tmp[4];
             int j = 0;
@@ -48,14 +58,34 @@ void panic(const char *module, const char *reason, const char *function) {
             }
             while (j > 0) buf[i++] = tmp[--j];
         }
+        buf[i++] = ' ';
         buf[i++] = 's';
+        buf[i++] = 'e';
+        buf[i++] = 'c';
         buf[i] = 0;
+
         vga_print_centered(buf, 22, BLUE_BG_WHITE);
 
-        for (volatile int d = 0; d < 90000000; d++) asm("pause");
+        for (int m = 0; m < 100; m++) {
+            sleep(10);
+
+            if (inb(0x64) & 0x01) {
+                uint8_t scancode = inb(0x60);
+                if (scancode == 0x1C) {
+                    forced_reboot = 1;
+                    break;
+                }
+            }
+        }
+
+        if (forced_reboot) {
+            break;
+        }
 
         seconds--;
     }
+
+    asm volatile("cli");
 
     asm volatile(
         "mov $0xFE, %%al;"
