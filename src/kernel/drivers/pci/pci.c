@@ -3,6 +3,7 @@
 #include "../vga/colors.h"
 #include "../../utils/ports.h"
 #include "../../utils/string.h"
+#include "../net/rtl8139.h"
 
 // Функция чтения 16-битного слова из конфигурационного пространства PCI
 uint16_t pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset) {
@@ -32,22 +33,17 @@ void pci_scan_bus() {
     vga_print_color("Scanning PCI bus...\n", LIGHT_CYAN);
 
     int devices_found = 0;
+    char buf[16];
 
     for (uint16_t bus = 0; bus < 256; bus++) {
         for (uint8_t slot = 0; slot < 32; slot++) {
-            // Читаем Vendor ID (смещение 0)
             uint16_t vendor_id = pci_config_read_word(bus, slot, 0, 0);
-
-            // Если Vendor ID = 0xFFFF, значит устройства в этом слоте нет
             if (vendor_id == 0xFFFF) continue;
 
-            // Читаем Device ID (смещение 2)
             uint16_t device_id = pci_config_read_word(bus, slot, 0, 2);
-
             devices_found++;
 
             vga_print("Bus ");
-            char buf[16];
             itoa(bus, buf, 10); vga_print_color(buf, YELLOW);
             vga_print(" Slot ");
             itoa(slot, buf, 10); vga_print_color(buf, YELLOW);
@@ -57,9 +53,30 @@ void pci_scan_bus() {
             vga_print(" Device: 0x");
             itoa(device_id, buf, 16); vga_print_color(buf, LIGHT_GREEN);
 
-            // Если это наша сетевая карта RTL8139 (Vendor: 0x10EC, Device: 0x8139)
+            // Если нашли нашу сетевую карту
             if (vendor_id == 0x10EC && device_id == 0x8139) {
-                vga_print_color("  <-- RTL8139 NETWORK CARD FOUND!", LIGHT_RED);
+                vga_print_color("  <-- RTL8139 FOUND!\n", LIGHT_RED);
+
+                // Читаем BAR0 (Базовый адрес ввода-вывода). Он занимает 32 бита (два слова по 16 бит)
+                uint32_t bar0_low = pci_config_read_word(bus, slot, 0, 0x10);
+                uint32_t bar0_high = pci_config_read_word(bus, slot, 0, 0x12);
+                uint32_t bar0 = (bar0_high << 16) | bar0_low;
+
+                // Бит 0 в BAR указывает тип: 1 - I/O порты, 0 - Memory Mapping.
+                // Нам нужен именно Memory/IO порт назначения. Маскируем нижние биты.
+                uint32_t io_base = bar0 & ~0x3;
+
+                // Читаем Interrupt Line (смещение 0x3C, нижний байт указывает IRQ)
+                uint16_t irq_data = pci_config_read_word(bus, slot, 0, 0x3C);
+                uint8_t irq = irq_data & 0xFF;
+
+                vga_print_color("    [NET] IO Base (BAR0): 0x", LIGHT_CYAN);
+                itoa(io_base, buf, 16); vga_print_color(buf, WHITE);
+
+                vga_print_color(" | IRQ: ", LIGHT_CYAN);
+                itoa(irq, buf, 10); vga_print_color(buf, WHITE);
+
+                rtl8139_init(io_base, irq);
             }
 
             vga_putc('\n');

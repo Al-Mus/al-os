@@ -53,6 +53,8 @@ const struct { const char* cmd; const char* desc; } help_table[] = {
     {"fatinfo", "Show FAT info"},
     {"disks", "Show detected disks"},
     {"fat", "Enter FAT shell mode"},
+    {"mkrootfs", "Create folders and files on a disk"},
+    {"pci", "Scaning bus"},
 };
 
 
