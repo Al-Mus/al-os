@@ -24,5 +24,6 @@ void cmd_disks();
 void cmd_fatwrite();
 void cmd_crash();
 void cmd_mkrootfs(const char* args);
+void pci_scan_bus();
 
 #endif

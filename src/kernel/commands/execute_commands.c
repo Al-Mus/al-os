@@ -4,6 +4,7 @@
 #include "../../apps/screensaver/screensaver.h"
 #include "../sys/panic.h"
 #include "../drivers/vga/vga.h"
+#include "../drivers/pci/pci.h"
 #include "../fs/memory_fs/fs.h"
 #include "../../apps/shell/fat_shell.h"
 #include "../utils/string.h"
@@ -159,6 +160,13 @@ static int execute_cmd_fattouch(char* args) {
     return 0;
 }
 
+// Интернет
+
+static int execute_cmd_pci(char* args) {
+    (void)args;
+    pci_scan_bus();
+    return 0;
+}
 
 /* ========================================================================== */
 /*                              Таблица команд                                */
@@ -222,7 +230,10 @@ static const command_t commands[] = {
     {"fattouch",    execute_cmd_fattouch},
     {"fatwrite",    execute_cmd_fatwrite},
     {"fatinfo",     execute_cmd_fatinfo},
-    {"fat",         execute_cmd_fat}
+    {"fat",         execute_cmd_fat},
+
+    // Интернет
+    {"pci", execute_cmd_pci}
 };
 
 #define COMMANDS_COUNT (sizeof(commands) / sizeof(commands[0]))
