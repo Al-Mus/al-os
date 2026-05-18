@@ -15,13 +15,223 @@
 #include "../drivers/vga/colors.h"
 #include <stddef.h>
 
-
 #include "all_commands.h"
+
+typedef int (*cmd_handler_t)(char* args);
+
+typedef struct {
+    const char* name;
+    cmd_handler_t handler;
+} command_t;
+
+/* ========================================================================== */
+/* Статическая обёртка для сложных или инлайн команд               */
+/* ========================================================================== */
+
+static int execute_cmd_help(char* args)      { cmd_help(args); return 0; }
+static int execute_cmd_clear(char* args)     { (void)args; vga_clear(); return 0; }
+static int execute_cmd_echo(char* args)      { cmd_echo(args); return 0; }
+static int execute_cmd_calc(char* args)      { cmd_calc(args); return 0; }
+static int execute_cmd_sysinfo(char* args)   { (void)args; cmd_sysinfo(); return 0; }
+static int execute_cmd_slowfetch(char* args) { (void)args; cmd_slowfetch(); return 0; }
+static int execute_cmd_uptime(char* args)    { (void)args; uptime_cmd(); return 0; }
+static int execute_cmd_meminfo(char* args)   { (void)args; meminfo_cmd(); return 0; }
+static int execute_cmd_time(char* args)      { (void)args; time_cmd(); return 0; }
+static int execute_cmd_aarch(char* args)     { (void)args; cmd_aarch(); return 0; }
+static int execute_cmd_reboot(char* args)    { (void)args; do_reboot(); return 0; }
+static int execute_cmd_poweroff(char* args)  { (void)args; do_poweroff(); return 0; }
+static int execute_cmd_whoami(char* args)    { (void)args; cmd_whoami(); return 0; }
+static int execute_cmd_date(char* args)      { cmd_date(args); return 0; }
+static int execute_cmd_colorbar(char* args)  { (void)args; cmd_colorbar(); return 0; }
+static int execute_cmd_memtest(char* args)   { (void)args; cmd_memtest(); return 0; }
+static int execute_cmd_history(char* args)   { (void)args; cmd_history(); return 0; }
+static int execute_cmd_mkrootfs(char* args)  { cmd_mkrootfs(args); return 0; }
+static int execute_cmd_crash(char* args)     { (void)args; cmd_crash(); return 0; }
+
+static int execute_cmd_chusr(char* args) {
+    if (args[0]) strncpy(user, args, 31);
+    user[31] = 0;
+    return 0;
+}
+
+static int execute_cmd_beep(char* args) {
+    int f = 1000, ms = 300;
+    if (args[0]) { f = 2000; ms = 500; }
+    beep_pit(f, ms);
+    return 0;
+}
+
+static int execute_cmd_panic(char* args) {
+    if (args && args[0]) {
+        panic("Shell", args, __func__);
+    } else {
+        panic("Shell", "User requested panic", __func__);
+    }
+    return 0;
+}
+
+// Команды RAM-FS
+static int execute_cmd_ls(char* args)    { fs_list(args[0] ? args : NULL); return 0; }
+static int execute_cmd_cd(char* args)    { if (args[0]) return fs_cd(args); return 0; }
+static int execute_cmd_pwd(char* args)   { (void)args; fs_pwd(); return 0; }
+static int execute_cmd_rm(char* args)    { if (args[0]) fs_rm(args); return 0; }
+static int execute_cmd_touch(char* args) { if (args[0]) fs_touch(args); return 0; }
+static int execute_cmd_cp(char* args)    { cmd_cp(args); return 0; }
+static int execute_cmd_mv(char* args)    { cmd_mv(args); return 0; }
+static int execute_cmd_tree(char* args)  { (void)args; cmd_tree(NULL, 0); return 0; }
+
+// Добавили пропущенный cat!
+static int execute_cmd_cat(char* args)   { if (args[0]) fs_cat(args); return 0; }
+
+static int execute_cmd_mkdir(char* args) {
+    if (args[0]) return fs_mkdir(args);
+    vga_print_color("Usage: mkdir <name>\n", LIGHT_RED);
+    return 1;
+}
+
+static int execute_cmd_write(char* args) {
+    char* text = strchr(args, ' ');
+    if (text) {
+        *text = 0;
+        text++;
+        fs_write(args, text);
+    }
+    return 0;
+}
+
+// Внешние программы
+static int execute_cmd_fm(char* args)          { (void)args; fm_run(); return 0; }
+static int execute_cmd_screensaver(char* args) { (void)args; screensaver_run(); return 0; }
+
+static int execute_cmd_nano(char* args) {
+    if (args[0]) nano_edit(args);
+    else vga_print_color("Usage: nano <file>\n", LIGHT_RED);
+    return 0;
+}
+
+// Команды диска и FAT
+static int execute_cmd_disks(char* args)    { (void)args; cmd_disks(); return 0; }
+static int execute_cmd_umount(char* args)   { (void)args; fat_unmount(); vga_print_color("Unmounted\n", 0x0A); return 0; }
+static int execute_cmd_fatls(char* args)    { fat_ls(args[0] ? args : NULL); return 0; }
+static int execute_cmd_fatpwd(char* args)   { (void)args; fat_pwd(); return 0; }
+static int execute_cmd_fatwrite(char* args) { (void)args; cmd_fatwrite(); return 0; }
+static int execute_cmd_fatinfo(char* args)  { (void)args; fat_info(); return 0; }
+static int execute_cmd_fat(char* args)      { (void)args; fat_shell(); return 0; }
+
+static int execute_cmd_mount(char* args) {
+    int drive = 0;
+    if (args[0]) drive = args[0] - '0';
+    if (fat_mount(drive) == 0) {
+        vga_print_color("Mounted ", 0x0A);
+        vga_print_color(fat_get_type_str(), YELLOW);
+        vga_print_color(" filesystem\n", 0x0A);
+    }
+    return 0;
+}
+
+static int execute_cmd_fatcd(char* args) {
+    if (args[0]) fat_cd(args);
+    else fat_cd("/");
+    return 0;
+}
+
+static int execute_cmd_fatcat(char* args) {
+    if (args[0]) fat_cat(args);
+    else vga_print_color("Usage: fatcat <file>\n", LIGHT_RED);
+    return 0;
+}
+
+static int execute_cmd_fatmkdir(char* args) {
+    if (args[0]) fat_mkdir(args);
+    else vga_print_color("Usage: fatmkdir <name>\n", LIGHT_RED);
+    return 0;
+}
+
+static int execute_cmd_fatrm(char* args) {
+    if (args[0]) fat_rm(args);
+    else vga_print_color("Usage: fatrm <name>\n", LIGHT_RED);
+    return 0;
+}
+
+static int execute_cmd_fattouch(char* args) {
+    if (args[0]) fat_touch(args);
+    else vga_print_color("Usage: fattouch <name>\n", LIGHT_RED);
+    return 0;
+}
+
+
+/* ========================================================================== */
+/*                              Таблица команд                                */
+/* ========================================================================== */
+
+static const command_t commands[] = {
+    // Системные команды шелла
+    {"help",        execute_cmd_help},
+    {"clear",       execute_cmd_clear},
+    {"echo",        execute_cmd_echo},
+    {"calc",        execute_cmd_calc},
+    {"chusr",       execute_cmd_chusr},
+    {"beep",        execute_cmd_beep},
+    {"crash",       execute_cmd_crash},
+    {"sysinfo",     execute_cmd_sysinfo},
+    {"slowfetch",   execute_cmd_slowfetch},
+    {"uptime",      execute_cmd_uptime},
+    {"meminfo",     execute_cmd_meminfo},
+    {"time",        execute_cmd_time},
+    {"aarch",       execute_cmd_aarch},
+    {"reboot",      execute_cmd_reboot},
+    {"poweroff",    execute_cmd_poweroff},
+    {"shutdown",    execute_cmd_poweroff},
+    {"whoami",      execute_cmd_whoami},
+    {"date",        execute_cmd_date},
+    {"colorbar",    execute_cmd_colorbar},
+    {"memtest",     execute_cmd_memtest},
+    {"panic",       execute_cmd_panic},
+    {"history",     execute_cmd_history},
+    {"mkrootfs",    execute_cmd_mkrootfs},
+
+    // Команды RAM-FS
+    {"ls",          execute_cmd_ls},
+    {"cd",          execute_cmd_cd},
+    {"pwd",         execute_cmd_pwd},
+    {"mkdir",       execute_cmd_mkdir},
+    {"rm",          execute_cmd_rm},
+    {"touch",       execute_cmd_touch},
+    {"write",       execute_cmd_write},
+    {"cat",         execute_cmd_cat},
+    {"cp",          execute_cmd_cp},
+    {"mv",          execute_cmd_mv},
+    {"tree",        execute_cmd_tree},
+
+    // Программы
+    {"nano",        execute_cmd_nano},
+    {"fm",          execute_cmd_fm},
+    {"ss",          execute_cmd_screensaver},
+    {"screensaver", execute_cmd_screensaver},
+
+    // Диски и FAT
+    {"disks",       execute_cmd_disks},
+    {"mount",       execute_cmd_mount},
+    {"umount",      execute_cmd_umount},
+    {"fatls",       execute_cmd_fatls},
+    {"fatcd",       execute_cmd_fatcd},
+    {"fatpwd",      execute_cmd_fatpwd},
+    {"fatcat",      execute_cmd_fatcat},
+    {"fatmkdir",    execute_cmd_fatmkdir},
+    {"fatrm",       execute_cmd_fatrm},
+    {"fattouch",    execute_cmd_fattouch},
+    {"fatwrite",    execute_cmd_fatwrite},
+    {"fatinfo",     execute_cmd_fatinfo},
+    {"fat",         execute_cmd_fat}
+};
+
+#define COMMANDS_COUNT (sizeof(commands) / sizeof(commands[0]))
 
 
 int execute_command(char* cmd) {
     while (*cmd == ' ') cmd++;
     if (!*cmd) return 0;
+
     char* space = strchr(cmd, ' ');
     char* args = "";
     if (space) {
@@ -31,68 +241,12 @@ int execute_command(char* cmd) {
         rtrim_spaces(args);
     }
 
-    //Команды shell
-    if (strcmp(cmd, "help") == 0)       { cmd_help(args); return 0; }
-    else if (strcmp(cmd, "clear") == 0) { vga_clear(); return 0; }
-    else if (strcmp(cmd, "echo") == 0) cmd_echo(args);
-    else if (strcmp(cmd, "calc") == 0) cmd_calc(args);
-    else if (strcmp(cmd, "chusr") == 0) { if (args[0]) strncpy(user, args, 31); user[31] = 0; }
-    else if (strcmp(cmd, "beep") == 0) { int f = 1000, ms = 300; if (args[0]) { f = 2000; ms = 500; } beep_pit(f, ms); }
-    else if (strcmp(cmd, "crash") == 0) cmd_crash();
-    else if (strcmp(cmd, "sysinfo") == 0) cmd_sysinfo();
-    else if (strcmp(cmd, "slowfetch") == 0) cmd_slowfetch();
-    else if (strcmp(cmd, "uptime") == 0) uptime_cmd();
-    else if (strcmp(cmd, "meminfo") == 0) meminfo_cmd();
-    else if (strcmp(cmd, "time") == 0) time_cmd();
-    else if (strcmp(cmd, "aarch") == 0) cmd_aarch();
-    else if (strcmp(cmd, "reboot") == 0) do_reboot();
-    else if (strcmp(cmd, "poweroff") == 0 || strcmp(cmd, "shutdown") == 0) do_poweroff();
-    else if (strcmp(cmd, "whoami") == 0)    cmd_whoami();
-    else if (strcmp(cmd, "date") == 0)      cmd_date(args);
-    else if (strcmp(cmd, "colorbar") == 0)  cmd_colorbar();
-    else if (strcmp(cmd, "memtest") == 0)   cmd_memtest();
-    else if (strcmp(cmd, "panic") == 0) { if (args && args[0]) { panic("Shell", args, __func__); } else { panic("Shell", "User requested panic", __func__); } }
-    else if (strcmp(cmd, "history") == 0) cmd_history();
-    else if (strcmp(cmd, "mkrootfs") == 0)  cmd_mkrootfs(args);
+    for (size_t i = 0; i < COMMANDS_COUNT; i++) {
+        if (strcmp(cmd, commands[i].name) == 0) {
+            return commands[i].handler(args);
+        }
+    }
 
-
-    // Команды ram-fs
-    else if (strcmp(cmd, "ls") == 0)    { fs_list(args[0] ? args : NULL); return 0; }
-    else if (strcmp(cmd, "cd") == 0)    { if (args[0]) return fs_cd(args); return 0; }
-    else if (strcmp(cmd, "pwd") == 0)   { fs_pwd(); return 0; }
-    else if (strcmp(cmd, "mkdir") == 0) { if (args[0]) return fs_mkdir(args); vga_print_color("Usage: mkdir <name>\n", LIGHT_RED); return 1; }
-    else if (strcmp(cmd, "rm") == 0) { if (args[0]) fs_rm(args); }
-    else if (strcmp(cmd, "touch") == 0) { if (args[0]) fs_touch(args); }
-    else if (strcmp(cmd, "write") == 0) { char* text = strchr(args, ' '); if (text) { *text = 0; text++; fs_write(args, text); } }
-    else if (strcmp(cmd, "cat") == 0) { if (args[0]) fs_cat(args); }
-    else if (strcmp(cmd, "cp") == 0) cmd_cp(args);
-    else if (strcmp(cmd, "mv") == 0) cmd_mv(args);
-    else if (strcmp(cmd, "tree") == 0) cmd_tree(NULL, 0);
-
-
-    // Команды программы
-    else if (strcmp(cmd, "nano") == 0) { if (args[0]) nano_edit(args); else vga_print_color("Usage: nano <file>\n", LIGHT_RED); }
-    else if (strcmp(cmd, "fm") == 0) { fm_run(); return 0; }
-    else if (strcmp(cmd, "ss") == 0 || strcmp(cmd, "screensaver") == 0) { screensaver_run(); return 0; }
-
-
-    // Команды с диском
-    else if (strcmp(cmd, "disks") == 0) cmd_disks();
-    else if (strcmp(cmd, "mount") == 0) { int drive = 0; if (args[0]) drive = args[0] - '0'; if (fat_mount(drive) == 0) { vga_print_color("Mounted ", 0x0A); vga_print_color(fat_get_type_str(), YELLOW); vga_print_color(" filesystem\n", 0x0A); } }
-    else if (strcmp(cmd, "umount") == 0) { fat_unmount(); vga_print_color("Unmounted\n", 0x0A); }
-    else if (strcmp(cmd, "fatls") == 0) fat_ls(args[0] ? args : NULL);
-    else if (strcmp(cmd, "fatcd") == 0) { if (args[0]) fat_cd(args); else fat_cd("/"); }
-    else if (strcmp(cmd, "fatpwd") == 0) fat_pwd();
-    else if (strcmp(cmd, "fatcat") == 0) { if (args[0]) fat_cat(args); else vga_print_color("Usage: fatcat <file>\n", LIGHT_RED); }
-    else if (strcmp(cmd, "fatmkdir") == 0) { if (args[0]) fat_mkdir(args); else vga_print_color("Usage: fatmkdir <name>\n", LIGHT_RED); }
-    else if (strcmp(cmd, "fatrm") == 0) { if (args[0]) fat_rm(args); else vga_print_color("Usage: fatrm <name>\n", LIGHT_RED); }
-    else if (strcmp(cmd, "fattouch") == 0) { if (args[0]) fat_touch(args); else vga_print_color("Usage: fattouch <name>\n", LIGHT_RED); }
-    else if (strcmp(cmd, "fatwrite") == 0) cmd_fatwrite();
-    else if (strcmp(cmd, "fatinfo") == 0) fat_info();
-    else if (strcmp(cmd, "fat") == 0) fat_shell();
-
-
-    else { vga_print_color("Command not found\n", LIGHT_RED); return 127; }
-
-    return 0;
+    vga_print_color("Command not found\n", LIGHT_RED);
+    return 127;
 }

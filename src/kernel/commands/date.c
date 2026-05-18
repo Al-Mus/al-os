@@ -72,9 +72,9 @@ void cmd_date(const char* args) {
 
         if (bytes > 0) {
             tzbuf[bytes] = '\0';
-            vga_print(" ");
-            vga_print_color("UTC", LIGHT_CYAN);
+            vga_print_color(" [UTC", LIGHT_CYAN);
             vga_print_color(tzbuf, LIGHT_CYAN);
+            vga_print_color("]", LIGHT_CYAN);
         }
     }
 
