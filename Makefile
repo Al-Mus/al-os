@@ -66,11 +66,11 @@ run:
 		-display gtk
 
 run_net:
-	qemu-system-i386
+	qemu-system-i386 \
 		-m 64M \
 		-cdrom AL-OS.iso \
 		$(DRIVE_ARG) \
-		-net nic,model=rt8139 -net user \
+		-net nic,model=rtl8139 -net user \
 		-boot d \
 		-display gtk
 
