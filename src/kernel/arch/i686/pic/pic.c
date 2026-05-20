@@ -6,12 +6,6 @@ static inline void io_wait(void) {
 }
 
 void pic_remap(int offset1, int offset2) {
-    uint8_t a1, a2;
-
-    // Считываем текущие маски, чтобы ничего не сломать
-    a1 = inb(PIC1_DATA);
-    a2 = inb(PIC2_DATA);
-
     // Начинаем инициализацию (ICW1)
     outb(PIC1_COMMAND, 0x11);
     io_wait();

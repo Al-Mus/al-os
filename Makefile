@@ -11,7 +11,7 @@ TARGET = kernel.elf
 ISO = AL-OS.iso
 
 comma := ,
-DRIVE_ARG := $(if $(wildcard fat32.img),-drive file=fat32.img$(comma)format=raw)
+DRIVE_ARG := $(if $(wildcard fat32.img),-drive file=fat32.img$(comma)format=raw$(comma)if=ide$(comma)index=1)
 
 # Находим ВСЕ файлы на Си
 C_SRCS := $(shell find src/ -name '*.c')
@@ -65,4 +65,14 @@ run:
 		-boot d \
 		-display gtk
 
+run_net:
+	qemu-system-i386
+		-m 64M \
+		-cdrom AL-OS.iso \
+		$(DRIVE_ARG) \
+		-net nic,model=rt8139 -net user \
+		-boot d \
+		-display gtk
+
 .PHONY: all iso clean clean-all run
+
