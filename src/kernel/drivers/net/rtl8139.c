@@ -23,16 +23,17 @@ static inline void pci_config_write_word(uint8_t bus, uint8_t slot, uint8_t func
     __asm__ volatile ("outw %%ax, %%dx" : : "a"(value), "d"(port));
 }
 
-void rtl8139_init(uint32_t io_base, uint8_t irq) {
+void rtl8139_init(uint32_t io_base, uint8_t irq, uint8_t bus, uint8_t slot, uint8_t func) {
     rtl_io_base = io_base;
     rtl_irq = irq;
 
     vga_print_color("[RTL8139] Initializing network card...\n", LIGHT_CYAN);
 
-    uint8_t bus = 0, slot = 3, func = 0;
+    // СТРОКУ "uint8_t bus = 0, slot = 3, func = 0;" МЫ УДАЛИЛИ!
+    // Теперь конфигурация PCI считывается строго для той карты, которую нашел сканер
     uint16_t pci_cmd = pci_config_read_word(bus, slot, func, 0x04);
-    pci_cmd |= (1 << 0);
-    pci_cmd |= (1 << 2);
+    pci_cmd |= (1 << 0); // Включаем IO Space
+    pci_cmd |= (1 << 2); // Включаем Bus Mastering (DMA)
     pci_config_write_word(bus, slot, func, 0x04, pci_cmd);
 
     outb(rtl_io_base + RTL_REG_CONFIG1, 0x00);
@@ -72,6 +73,7 @@ void rtl8139_init(uint32_t io_base, uint8_t irq) {
     vga_putc('\n');
 
     outb(rtl_io_base + RTL_REG_CR, 0x0C);
+    outb(rtl_io_base + RTL_REG_CONFIG1, 0x00);
 
     vga_print_color("[RTL8139] Card is UP and RUNNING!\n", LIGHT_GREEN);
 }

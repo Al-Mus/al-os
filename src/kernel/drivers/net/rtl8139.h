@@ -19,8 +19,7 @@
 #define RTL_INT_ROK          0x01    // Receive OK (Пакет успешно принят)
 #define RTL_INT_TOK          0x02    // Transmit OK (Пакет успешно отправлен)
 
-
-void rtl8139_init(uint32_t io_base, uint8_t irq);
+void rtl8139_init(uint32_t io_base, uint8_t irq, uint8_t bus, uint8_t slot, uint8_t func);
 void rtl8139_receive();
 void rtl8139_send_packet(void* data, uint32_t len);
 void rtl8139_handler();

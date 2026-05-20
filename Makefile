@@ -12,6 +12,12 @@ ISO = AL-OS.iso
 
 comma := ,
 DRIVE_ARG := $(if $(wildcard fat32.img),-drive file=fat32.img$(comma)format=raw$(comma)if=ide$(comma)index=1)
+QEMU := qemu-system-i386 \
+	-m 64M \
+	-cdrom $(ISO) \
+	$(DRIVE_ARG) \
+	-boot d \
+	-display gtk
 
 # Находим ВСЕ файлы на Си
 C_SRCS := $(shell find src/ -name '*.c')
@@ -35,7 +41,7 @@ all: $(TARGET)
 	$(ASM) $(ASFLAGS) $< -o $@
 
 $(TARGET): $(OBJS)
-	$(LD) -T linker.ld -m elf_i386 -o $(TARGET) $(OBJS)
+	$(LD) -T linker.ld -m elf_i386 -nostdlib -o $(TARGET) $(OBJS)
 
 iso: $(TARGET)
 	mkdir -p iso/boot/grub
@@ -58,21 +64,28 @@ clean:
 	rm -rf iso
 
 run:
-	qemu-system-i386 \
-		-m 64M \
-		-cdrom AL-OS.iso \
-		$(DRIVE_ARG) \
-		-boot d \
-		-display gtk
+	$(QEMU)
 
 run_net:
-	qemu-system-i386 \
-		-m 64M \
-		-cdrom AL-OS.iso \
-		$(DRIVE_ARG) \
+	$(QEMU) \
+		-net nic,model=rtl8139 -net user
+
+run_speaker:
+	$(QEMU) \
+		-audiodev pa,id=audio0 \
+		-machine pcspk-audiodev=audio0
+
+run_all:
+	$(QEMU) \
 		-net nic,model=rtl8139 -net user \
-		-boot d \
-		-display gtk
+		-audiodev pa,id=audio0 \
+		-machine pcspk-audiodev=audio0
 
-.PHONY: all iso clean clean-all run
+run_debug:
+	$(QEMU) \
+	-s -S \
+	-net nic,model=rtl8139 -net user \
+	-audiodev pa,id=audio0 \
+	-machine pcspk-audiodev=audio0
 
+.PHONY: all iso clean clean-all run run_net run_speaker run_all run_debug iso_podman iso_docker
